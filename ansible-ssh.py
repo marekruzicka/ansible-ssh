@@ -59,7 +59,7 @@ _ansible_ssh_completion() {
             if [ -d "$file" ]; then
                 completions+=( "${file}/" )
             else
-                completions+=( "$file" )
+                completions+=( "$file " )
             fi
         done
         COMPREPLY=( "${completions[@]}" )
