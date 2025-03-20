@@ -6,7 +6,7 @@ It supports extra SSH options via `ansible_ssh_common_args` and `ansible_ssh_ext
 
 ## Features
 
-`ansible-ssh -i inventory host`
+`ansible-ssh -i inventory <host>`
 
 - **Automated Connection Parameters:** Extracts connection details from an Ansible inventory.
 - **Fallback Mechanism:** Uses standard SSH configuration (e.g., `~/.ssh/config`) for any unspecified settings.
@@ -24,25 +24,21 @@ It supports extra SSH options via `ansible_ssh_common_args` and `ansible_ssh_ext
 
 ## Installation
 
-Clone the repository, link/copy somewhere into $PATH, and install bash completion script. Make it executable and most likely rerun bash to load completion script.
-```bash
-git clone https://your.repo.url/ansible-ssh.git
-cd ansible-ssh
-chmod +x ansible-ssh.py
+Clone the repository, link/copy somewhere into `$PATH`, and install bash completion script.  
+Make it executable and most likely rerun `bash` to load completion script.
 
-ln -s ansible-ssh.py ~/.local/bin/ansible-ssh
+```bash
+# Most likely don't need to install anything, but for reference...
+sudo apt-get update
+sudo apt-get install git python3 ansible-core sshpass jq bash-completion -y
+
+git clone https://github.com/marekruzicka/ansible-ssh.git
+cd ansible-ssh
+chmod +x ansible-ssh/ansible-ssh.py
+
+ln -s $PWD/ansible-ssh.py ~/.local/bin/ansible-ssh
 
 ansible-ssh -C bash | sudo tee /etc/bash_completion.d/ansible-ssh
-```
-
-**On Debian/Ubuntu:**
-```bash
-sudo apt-get update
-sudo apt-get install python3 ansible-core sshpass jq bash-completion -y
-```
-**On RHEL/CentOS:**
-```bash
-sudo yum install python3 ansible-core sshpass jq bash-completion -y
 ```
 
 ## Usage
