@@ -25,13 +25,78 @@ import shutil
 # Set this to False if you want to disable parsing of extra SSH options.
 ENABLE_EXTRA_SSH_OPTIONS = False
 
+def print_bash_completion_script():
+    script = r"""#!/bin/bash
+# Bash completion for ansible-ssh.py
+
+_ansible_ssh_completion() {
+    local cur prev inv_index inv_file hostlist
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+
+    # Locate the inventory file argument by finding "-i" or "--inventory"
+    inv_index=-1
+    for i in "${!COMP_WORDS[@]}"; do
+        if [[ "${COMP_WORDS[i]}" == "-i" || "${COMP_WORDS[i]}" == "--inventory" ]]; then
+            inv_index=$((i+1))
+            break
+        fi
+    done
+
+    # If no -i/--inventory flag is present, do nothing.
+    if [ $inv_index -eq -1 ]; then
+        return 0
+    fi
+
+    # If completing the inventory file argument itself, complete file paths.
+    if [ $COMP_CWORD -eq $inv_index ]; then
+        # Disable automatic space appending.
+        compopt -o nospace
+        local IFS=$'\n'
+        local files=( $(compgen -f -- "$cur") )
+        local completions=()
+        for file in "${files[@]}"; do
+            if [ -d "$file" ]; then
+                completions+=( "${file}/" )
+            else
+                completions+=( "$file" )
+            fi
+        done
+        COMPREPLY=( "${completions[@]}" )
+        return 0
+    fi
+
+    # Otherwise, assume the inventory file argument has been provided.
+    inv_file="${COMP_WORDS[$inv_index]}"
+
+    # Check that the inventory file exists.
+    if [[ ! -f "$inv_file" ]]; then
+        return 0
+    fi
+
+    # Now complete hostnames from the provided inventory.
+    hostlist=$(ansible-inventory -i "$inv_file" --list 2>/dev/null | jq -r '._meta.hostvars | keys[]' 2>/dev/null)
+    COMPREPLY=( $(compgen -W "$hostlist" -- "$cur") )
+}
+
+complete -F _ansible_ssh_completion ansible-ssh.py
+"""
+    print(script)
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Connect to a host using connection variables from an Ansible inventory."
     )
-    parser.add_argument("-i", "--inventory", required=True, help="Path to the Ansible inventory file")
-    parser.add_argument("host", help="Host to connect to")
-    return parser.parse_args()
+    parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
+    parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
+    parser.add_argument("host", nargs="?", help="Host to connect to")
+    args = parser.parse_args()
+
+    # If not in completion mode, require both inventory and host.
+    if not args.complete and (not args.inventory or not args.host):
+        parser.error("the following arguments are required: -i/--inventory, host")
+    return args
 
 def get_host_vars(inventory_file, host):
     try:
@@ -116,6 +181,12 @@ def build_ssh_command(host_vars, host):
 
 def main():
     args = parse_arguments()
+
+    # If --complete bash is requested, print the completion script and exit.
+    if args.complete:
+        if args.complete == "bash":
+            print_bash_completion_script()
+            sys.exit(0)
 
     # Check that the inventory file exists.
     if not os.path.exists(args.inventory):
