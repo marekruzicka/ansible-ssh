@@ -28,7 +28,7 @@ ENABLE_EXTRA_SSH_OPTIONS = False
 
 def print_bash_completion_script():
     script = r"""#!/bin/bash
-# Bash completion script
+# Bash completion script for ansible-ssh
 
 _ansible_ssh_completion() {
     local cur prev inv_index inv_file hostlist
@@ -36,7 +36,18 @@ _ansible_ssh_completion() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    # If completing the -C/--complete flag, suggest only 'bash'
+    # Available options at the top level
+    if [[ $COMP_CWORD -eq 1 ]]; then
+        COMPREPLY=( $(compgen -W "-C --complete -h --help -i --inventory" -- "$cur") )
+        return 0
+    fi
+
+    # Stop completion if -h/--help is used
+    if [[ " ${COMP_WORDS[@]} " =~ " -h " || " ${COMP_WORDS[@]} " =~ " --help " ]]; then
+        return 0
+    fi
+
+    # If completing the -C/--complete flag, suggest only 'bash' and stop further completion
     if [[ "${prev}" == "-C" || "${prev}" == "--complete" ]]; then
         COMPREPLY=( $(compgen -W "bash" -- "$cur") )
         return 0
@@ -51,14 +62,8 @@ _ansible_ssh_completion() {
         fi
     done
 
-    # If no -i/--inventory flag is present, do nothing.
-    if [ $inv_index -eq -1 ]; then
-        return 0
-    fi
-
-    # If completing the inventory file argument itself, complete file paths.
+    # If completing the inventory file argument itself, complete file paths and stop further completion
     if [ $COMP_CWORD -eq $inv_index ]; then
-        # Disable automatic space appending.
         compopt -o nospace
         local IFS=$'\n'
         local files=( $(compgen -f -- "$cur") )
@@ -74,11 +79,10 @@ _ansible_ssh_completion() {
         return 0
     fi
 
-    # Otherwise, assume the inventory file argument has been provided.
-    inv_file="${COMP_WORDS[$inv_index]}"
-
-    # Check that the inventory file exists.
-    if [[ ! -f "$inv_file" ]]; then
+    # Ensure -i/--inventory is set and completed before suggesting hosts
+    if [ $inv_index -ne -1 ] && [[ -f "${COMP_WORDS[$inv_index]}" ]]; then
+        inv_file="${COMP_WORDS[$inv_index]}"
+    else
         return 0
     fi
 
