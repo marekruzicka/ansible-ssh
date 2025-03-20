@@ -87,10 +87,11 @@ complete -F _ansible_ssh_completion "$(basename "$0")"
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Connect to a host using connection variables from an Ansible inventory."
+        description="Connect to a host using connection variables from an Ansible inventory.",
         epilog="EXAMPLES:\n"
-           "  Connect to a host: %(prog)s -i inventory.txt myhost\n"
-           "  Generate and install bash completion script: %(prog)s -C bash | sudo tee /etc/bash_completion.d/%(prog)s"
+           "  Connect to a host:\n\t %(prog)s -i inventory myhost\n\n"
+           "  Generate and install bash completion script:\n\t %(prog)s -C bash | sudo tee /etc/bash_completion.d/%(prog)s",
+        formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
     parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
