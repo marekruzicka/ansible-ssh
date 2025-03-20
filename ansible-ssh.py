@@ -23,7 +23,7 @@ import subprocess
 import sys
 import shutil
 
-# Set this to False if you want to disable parsing of extra SSH options.
+# Set this to True to enable parsing of extra SSH options. (experimental)
 ENABLE_EXTRA_SSH_OPTIONS = False
 
 def print_bash_completion_script():
@@ -34,6 +34,13 @@ _ansible_ssh_completion() {
     local cur prev inv_index inv_file hostlist
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # If completing the -C/--complete flag, suggest only 'bash'
+    if [[ "${prev}" == "-C" || "${prev}" == "--complete" ]]; then
+        COMPREPLY=( $(compgen -W "bash" -- "$cur") )
+        return 0
+    fi
 
     # Locate the inventory file argument by finding "-i" or "--inventory"
     inv_index=-1
