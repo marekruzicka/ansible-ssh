@@ -2,6 +2,10 @@
 # ansible-ssh: Connect to a host using connection variables from an Ansible inventory,
 # with fallbacks to standard SSH configuration (e.g., ~/.ssh/config) for unspecified settings.
 #
+# In addition to standard options (user, port, key, etc.), this script now supports extra SSH options
+# from the inventory: ansible_ssh_common_args and ansible_ssh_extra_args. For example, you can configure a
+# proxy jump by setting ansible_ssh_common_args: "-o ProxyJump=builder" in your inventory for a given host.
+#
 # Usage: ansible-ssh -i <inventory_file> <host>
 #
 # Requirements: ansible, jq, and optionally sshpass (for password authentication)
@@ -20,7 +24,6 @@ while getopts ":i:" opt; do
 done
 shift $((OPTIND - 1))
 
-# Require a host argument
 if [ -z "$INVENTORY" ] || [ -z "$1" ]; then
     usage
 fi
@@ -42,11 +45,10 @@ fi
 # If a variable is not defined in the inventory, leave it empty so SSH can fall back to its configuration.
 HOST_IP=$(echo "$HOST_VARS" | jq -r '.ansible_host // empty')
 if [ -z "$HOST_IP" ]; then
-    # If ansible_host is not provided, assume the inventory hostname is resolvable.
     HOST_IP="$HOST"
 fi
 
-# Retrieve SSH user. Look first for ansible_ssh_user, then ansible_user.
+# Retrieve SSH user. Check for ansible_ssh_user first, then ansible_user.
 USER=$(echo "$HOST_VARS" | jq -r '(.ansible_ssh_user // .ansible_user) // empty')
 
 # Retrieve the SSH port if provided.
@@ -55,32 +57,51 @@ PORT=$(echo "$HOST_VARS" | jq -r '.ansible_port // empty')
 # Retrieve SSH key if provided.
 KEY=$(echo "$HOST_VARS" | jq -r '.ansible_private_key_file // empty')
 
-# Retrieve SSH password. Look first for ansible_ssh_pass, then ansible_password.
+# Retrieve SSH password. Check for ansible_ssh_pass first, then ansible_password.
 SSH_PASS=$(echo "$HOST_VARS" | jq -r '(.ansible_ssh_pass // .ansible_password) // empty')
 
-# Build SSH options. Only add options if the corresponding variable is provided.
-SSH_OPTS=""
+# Retrieve additional SSH options:
+# ansible_ssh_common_args: e.g., "-o ProxyJump=builder"
+# ansible_ssh_extra_args: additional custom options if needed.
+COMMON_ARGS=$(echo "$HOST_VARS" | jq -r '.ansible_ssh_common_args // empty')
+EXTRA_ARGS=$(echo "$HOST_VARS" | jq -r '.ansible_ssh_extra_args // empty')
+
+# Build an array of SSH options.
+ssh_opts=()
+
 if [ -n "$PORT" ]; then
-    SSH_OPTS="$SSH_OPTS -p $PORT"
+    ssh_opts+=("-p" "$PORT")
 fi
 if [ -n "$KEY" ]; then
-    SSH_OPTS="$SSH_OPTS -i $KEY"
+    ssh_opts+=("-i" "$KEY")
+fi
+
+# If common args are provided, split them into an array and append.
+if [ -n "$COMMON_ARGS" ]; then
+    read -r -a common_array <<< "$COMMON_ARGS"
+    ssh_opts+=("${common_array[@]}")
+fi
+
+# If extra args are provided, split them into an array and append.
+if [ -n "$EXTRA_ARGS" ]; then
+    read -r -a extra_array <<< "$EXTRA_ARGS"
+    ssh_opts+=("${extra_array[@]}")
 fi
 
 # Construct the target. If a username is provided from the inventory, use it;
-# otherwise, leave it unset so that SSH uses its default (or one specified in ~/.ssh/config).
+# otherwise, let SSH use its default (or those specified in ~/.ssh/config).
 if [ -n "$USER" ]; then
     TARGET="$USER@$HOST_IP"
 else
     TARGET="$HOST_IP"
 fi
 
-echo "Connecting to $TARGET with options: $SSH_OPTS"
+echo "Running: ssh "${ssh_opts[@]}" "$TARGET""
 
 # If a password is provided, use sshpass; otherwise, launch a normal SSH session.
 if [ -n "$SSH_PASS" ]; then
     command -v sshpass >/dev/null 2>&1 || { echo "Error: sshpass is required for password-based SSH. Please install sshpass."; exit 1; }
-    sshpass -p "$SSH_PASS" ssh $SSH_OPTS "$TARGET"
+    sshpass -p "$SSH_PASS" ssh "${ssh_opts[@]}" "$TARGET"
 else
-    ssh $SSH_OPTS "$TARGET"
+    ssh "${ssh_opts[@]}" "$TARGET"
 fi
