@@ -80,8 +80,9 @@ _ansible_ssh_completion() {
     COMPREPLY=( $(compgen -W "$hostlist" -- "$cur") )
 }
 
-complete -F _ansible_ssh_completion "$(basename "$0")"
+complete -F _ansible_ssh_completion {basename}
 """
+    script = script.replace("{basename}", os.path.basename(sys.argv[0]))
     print(script)
 
 
