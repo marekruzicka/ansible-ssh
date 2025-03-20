@@ -1,0 +1,86 @@
+#!/bin/bash
+# ansible-ssh: Connect to a host using connection variables from an Ansible inventory,
+# with fallbacks to standard SSH configuration (e.g., ~/.ssh/config) for unspecified settings.
+#
+# Usage: ansible-ssh -i <inventory_file> <host>
+#
+# Requirements: ansible, jq, and optionally sshpass (for password authentication)
+
+function usage() {
+    echo "Usage: $0 -i <inventory_file> <host>"
+    exit 1
+}
+
+# Process flags
+while getopts ":i:" opt; do
+    case $opt in
+        i) INVENTORY="$OPTARG" ;;
+        *) usage ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+# Require a host argument
+if [ -z "$INVENTORY" ] || [ -z "$1" ]; then
+    usage
+fi
+
+HOST="$1"
+
+# Ensure required commands are available
+command -v ansible-inventory >/dev/null 2>&1 || { echo "Error: ansible-inventory command not found. Install Ansible."; exit 1; }
+command -v jq >/dev/null 2>&1 || { echo "Error: jq is required. Please install jq."; exit 1; }
+
+# Retrieve host variables in JSON format using ansible-inventory
+HOST_VARS=$(ansible-inventory -i "$INVENTORY" --host "$HOST")
+if [ -z "$HOST_VARS" ]; then
+    echo "No host information found for '$HOST' in inventory '$INVENTORY'."
+    exit 1
+fi
+
+# Parse connection variables with jq.
+# If a variable is not defined in the inventory, leave it empty so SSH can fall back to its configuration.
+HOST_IP=$(echo "$HOST_VARS" | jq -r '.ansible_host // empty')
+if [ -z "$HOST_IP" ]; then
+    # If ansible_host is not provided, assume the inventory hostname is resolvable.
+    HOST_IP="$HOST"
+fi
+
+# Retrieve SSH user. Look first for ansible_ssh_user, then ansible_user.
+USER=$(echo "$HOST_VARS" | jq -r '(.ansible_ssh_user // .ansible_user) // empty')
+
+# Retrieve the SSH port if provided.
+PORT=$(echo "$HOST_VARS" | jq -r '.ansible_port // empty')
+
+# Retrieve SSH key if provided.
+KEY=$(echo "$HOST_VARS" | jq -r '.ansible_private_key_file // empty')
+
+# Retrieve SSH password. Look first for ansible_ssh_pass, then ansible_password.
+SSH_PASS=$(echo "$HOST_VARS" | jq -r '(.ansible_ssh_pass // .ansible_password) // empty')
+
+# Build SSH options. Only add options if the corresponding variable is provided.
+SSH_OPTS=""
+if [ -n "$PORT" ]; then
+    SSH_OPTS="$SSH_OPTS -p $PORT"
+fi
+if [ -n "$KEY" ]; then
+    SSH_OPTS="$SSH_OPTS -i $KEY"
+fi
+
+# Construct the target. If a username is provided from the inventory, use it;
+# otherwise, leave it unset so that SSH uses its default (or one specified in ~/.ssh/config).
+if [ -n "$USER" ]; then
+    TARGET="$USER@$HOST_IP"
+else
+    TARGET="$HOST_IP"
+fi
+
+echo "Connecting to $TARGET with options: $SSH_OPTS"
+
+# If a password is provided, use sshpass; otherwise, launch a normal SSH session.
+if [ -n "$SSH_PASS" ]; then
+    command -v sshpass >/dev/null 2>&1 || { echo "Error: sshpass is required for password-based SSH. Please install sshpass."; exit 1; }
+    sshpass -p "$SSH_PASS" ssh $SSH_OPTS "$TARGET"
+else
+    ssh $SSH_OPTS "$TARGET"
+fi
