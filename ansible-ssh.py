@@ -6,12 +6,13 @@ It also supports additional SSH options via ansible_ssh_common_args and ansible_
 which can be disabled by setting ENABLE_EXTRA_SSH_OPTIONS to False.
 
 Usage:
-    ansible-ssh.py -i <inventory_file> <host>
+    ansible-ssh -i <inventory_file> <host>
     
 Requirements:
     - ansible (for ansible-inventory)
     - Python 3
     - sshpass (if using password-based SSH)
+    - jq (for bash_completion script)
 """
 
 import argparse
@@ -27,7 +28,7 @@ ENABLE_EXTRA_SSH_OPTIONS = False
 
 def print_bash_completion_script():
     script = r"""#!/bin/bash
-# Bash completion for ansible-ssh.py
+# Bash completion script
 
 _ansible_ssh_completion() {
     local cur prev inv_index inv_file hostlist
@@ -79,7 +80,7 @@ _ansible_ssh_completion() {
     COMPREPLY=( $(compgen -W "$hostlist" -- "$cur") )
 }
 
-complete -F _ansible_ssh_completion ansible-ssh.py
+complete -F _ansible_ssh_completion "$(basename "$0")"
 """
     print(script)
 
@@ -87,6 +88,9 @@ complete -F _ansible_ssh_completion ansible-ssh.py
 def parse_arguments():
     parser = argparse.ArgumentParser(
         description="Connect to a host using connection variables from an Ansible inventory."
+        epilog="EXAMPLES:\n"
+           "  Connect to a host: %(prog)s -i inventory.txt myhost\n"
+           "  Generate and install bash completion script: %(prog)s -C bash | sudo tee /etc/bash_completion.d/%(prog)s"
     )
     parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
     parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
