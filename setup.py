@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="ssh-ansible",
+    name="ssh_ansible",
     version="0.9.0",
-    description="ansible-ssh -i inventory host (with bash completion :))",
+    description="SSH to host from ansible inventory",
     long_description=open("PYPI.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/marekruzicka/ansible-ssh.git",
@@ -14,7 +14,7 @@ setup(
     packages=find_packages(where="src"),
     entry_points={
          "console_scripts": [
-             "ansible-ssh = ansible_ssh_glide.ansible_ssh:main",
+             "ansible-ssh = ssh_ansible.ansible_ssh:main",
          ]
     },
     install_requires=[
