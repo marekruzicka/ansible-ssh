@@ -142,6 +142,7 @@ def parse_arguments():
         SystemExit: If required arguments are missing.
     """
     parser = argparse.ArgumentParser(
+        usage="%(prog)s [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [--debug]",
         description="Connect to a host using connection variables from an Ansible inventory.",
         epilog="EXAMPLES:\n"
                "  Connect to a host:\n\t %(prog)s -i inventory myhost\n\n"
