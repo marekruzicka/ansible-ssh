@@ -27,8 +27,28 @@ import shutil
 ENABLE_EXTRA_SSH_OPTIONS = False
 
 def print_bash_completion_script():
+    """
+    Prints a bash completion script for the ansible-ssh command.
+
+    This function generates and prints a bash completion script tailored for 
+    the ansible-ssh utility. The script enhances the user experience by 
+    providing tab completion for command-line options, inventory file paths, 
+    and hostnames from a specified Ansible inventory file.
+
+    The generated script supports:
+    - Completion for top-level command-line options like -C/--complete, 
+      -h/--help, and -i/--inventory.
+    - File path completion when specifying an inventory file with the 
+      -i/--inventory flag.
+    - Hostname completion from the provided inventory file, once it is verified 
+      to exist.
+
+    The script is dynamically updated with the basename of the current 
+    executing script, ensuring correct invocation of the completion function.
+    """
+
     script = r"""#!/bin/bash
-# Bash completion script for ansible-ssh
+# Bash completion script for {basename}
 
 _ansible_ssh_completion() {
     local cur prev inv_index inv_file hostlist
@@ -98,6 +118,22 @@ complete -F _ansible_ssh_completion {basename}
 
 
 def parse_arguments():
+    """
+    Parses command-line arguments for the ansible-ssh script.
+
+    This function sets up and processes the command-line arguments needed to
+    connect to a host using connection variables from an Ansible inventory.
+    It provides options for generating a bash completion script and specifying
+    the inventory file and host.
+
+    Returns:
+        argparse.Namespace: Parsed arguments including options for completion,
+        inventory file path, and host.
+
+    Raises:
+        SystemExit: If required arguments are missing when not in completion mode.
+    """
+
     parser = argparse.ArgumentParser(
         description="Connect to a host using connection variables from an Ansible inventory.",
         epilog="EXAMPLES:\n"
@@ -116,6 +152,20 @@ def parse_arguments():
     return args
 
 def get_host_vars(inventory_file, host):
+    """
+    Run ansible-inventory to retrieve host variables from an inventory file.
+
+    Parameters:
+        inventory_file (str): Path to the Ansible inventory file.
+        host (str): Hostname to retrieve variables for.
+
+    Returns:
+        dict: Host variables as a dictionary.
+
+    Raises:
+        SystemExit: If the inventory file does not exist, or the host is not
+            found in the inventory, or there is an error running ansible-inventory.
+    """
     try:
         result = subprocess.run(
             ["ansible-inventory", "-i", inventory_file, "--host", host],
@@ -143,6 +193,7 @@ def get_host_vars(inventory_file, host):
 def parse_extra_ssh_options(host_vars):
     """
     Parses extra SSH options from the inventory.
+    
     Processes ansible_ssh_common_args and ansible_ssh_extra_args.
     Returns a list of extra SSH options.
     """
@@ -166,6 +217,16 @@ def parse_extra_ssh_options(host_vars):
 
 def build_ssh_command(host_vars, host):
     # Extract variables with fallbacks
+    """
+    Builds the SSH command list and target string from host variables.
+
+    Extracts required connection variables from the host variables dictionary.
+    If a variable is not provided, falls back to the host name or other defaults.
+    Builds the base SSH command as a list.
+    If ENABLE_EXTRA_SSH_OPTIONS is True, adds extra SSH options from the inventory.
+    Builds the target string.
+    Returns the SSH command list, SSH password (if any), and target string.
+    """
     host_ip = host_vars.get("ansible_host", host)
     # For user, check ansible_ssh_user then ansible_user.
     user = host_vars.get("ansible_ssh_user") or host_vars.get("ansible_user")
@@ -197,6 +258,17 @@ def build_ssh_command(host_vars, host):
     return ssh_cmd, ssh_pass, target
 
 def main():
+    """
+    Main function to execute the ansible-ssh script.
+
+    This function parses the command-line arguments and either prints the bash
+    completion script or executes an SSH connection using parameters from an
+    Ansible inventory. It validates the existence of the specified inventory
+    file and retrieves host variables. It constructs the SSH command with
+    necessary options, including additional SSH options if enabled. If a
+    password is required, it uses 'sshpass' to facilitate the connection.
+    """
+
     args = parse_arguments()
 
     # If --complete bash is requested, print the completion script and exit.
