@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
-ansible-ssh: Connect to a host using connection variables from an Ansible inventory,
-with fallbacks to standard SSH configuration (e.g. ~/.ssh/config) for unspecified settings.
-It also supports additional SSH options via ansible_ssh_common_args and ansible_ssh_extra_args,
-which can be disabled by setting ENABLE_EXTRA_SSH_OPTIONS to False.
+ansible-ssh: Connect to a host using connection variables from an Ansible inventory.
 
 Usage:
     ansible-ssh -i <inventory_file> <host>
-    
+
 Requirements:
     - ansible (for ansible-inventory)
     - Python 3
@@ -23,30 +20,15 @@ import subprocess
 import sys
 import shutil
 
-# Set this to True to enable parsing of extra SSH options. (experimental)
+# Set this to True to enable parsing of extra SSH options (experimental)
 ENABLE_EXTRA_SSH_OPTIONS = False
 
 def print_bash_completion_script():
     """
-    Prints a bash completion script for the ansible-ssh command.
+    Print a bash completion script for ansible-ssh.
 
-    This function generates and prints a bash completion script tailored for 
-    the ansible-ssh utility. The script enhances the user experience by 
-    providing tab completion for command-line options, inventory file paths, 
-    and hostnames from a specified Ansible inventory file.
-
-    The generated script supports:
-    - Completion for top-level command-line options like -C/--complete, 
-      -h/--help, and -i/--inventory.
-    - File path completion when specifying an inventory file with the 
-      -i/--inventory flag.
-    - Hostname completion from the provided inventory file, once it is verified 
-      to exist.
-
-    The script is dynamically updated with the basename of the current 
-    executing script, ensuring correct invocation of the completion function.
+    The script provides tab completion for options, inventory files, and hostnames.
     """
-
     script = r"""#!/bin/bash
 # Bash completion script for {basename}
 
@@ -82,7 +64,7 @@ _ansible_ssh_completion() {
         fi
     done
 
-    # If completing the inventory file argument itself, complete file paths and stop further completion
+    # If completing the inventory file argument, complete file paths
     if [ $COMP_CWORD -eq $inv_index ]; then
         compopt -o nospace
         local IFS=$'\n'
@@ -99,14 +81,13 @@ _ansible_ssh_completion() {
         return 0
     fi
 
-    # Ensure -i/--inventory is set and completed before suggesting hosts
+    # Complete hostnames from the provided inventory if it exists
     if [ $inv_index -ne -1 ] && [[ -f "${COMP_WORDS[$inv_index]}" ]]; then
         inv_file="${COMP_WORDS[$inv_index]}"
     else
         return 0
     fi
 
-    # Now complete hostnames from the provided inventory.
     hostlist=$(ansible-inventory -i "$inv_file" --list 2>/dev/null | jq -r '._meta.hostvars | keys[]' 2>/dev/null)
     COMPREPLY=( $(compgen -W "$hostlist" -- "$cur") )
 }
@@ -116,29 +97,21 @@ complete -F _ansible_ssh_completion {basename}
     script = script.replace("{basename}", os.path.basename(sys.argv[0]))
     print(script)
 
-
 def parse_arguments():
     """
-    Parses command-line arguments for the ansible-ssh script.
-
-    This function sets up and processes the command-line arguments needed to
-    connect to a host using connection variables from an Ansible inventory.
-    It provides options for generating a bash completion script and specifying
-    the inventory file and host.
+    Parse command-line arguments for ansible-ssh.
 
     Returns:
-        argparse.Namespace: Parsed arguments including options for completion,
-        inventory file path, and host.
+        argparse.Namespace: Parsed arguments with inventory file, host, and optional completion flag.
 
     Raises:
-        SystemExit: If required arguments are missing when not in completion mode.
+        SystemExit: If required arguments are missing.
     """
-
     parser = argparse.ArgumentParser(
         description="Connect to a host using connection variables from an Ansible inventory.",
         epilog="EXAMPLES:\n"
-           "  Connect to a host:\n\t %(prog)s -i inventory myhost\n\n"
-           "  Generate and install bash completion script:\n\t %(prog)s -C bash | sudo tee /etc/bash_completion.d/%(prog)s",
+               "  Connect to a host:\n\t %(prog)s -i inventory myhost\n\n"
+               "  Generate and install bash completion script:\n\t %(prog)s -C bash | sudo tee /etc/bash_completion.d/%(prog)s",
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
@@ -146,25 +119,23 @@ def parse_arguments():
     parser.add_argument("host", nargs="?", help="Host to connect to")
     args = parser.parse_args()
 
-    # If not in completion mode, require both inventory and host.
     if not args.complete and (not args.inventory or not args.host):
         parser.error("the following arguments are required: -i/--inventory, host")
     return args
 
 def get_host_vars(inventory_file, host):
     """
-    Run ansible-inventory to retrieve host variables from an inventory file.
+    Retrieve host variables from the inventory using ansible-inventory.
 
-    Parameters:
+    Args:
         inventory_file (str): Path to the Ansible inventory file.
-        host (str): Hostname to retrieve variables for.
+        host (str): Host name.
 
     Returns:
-        dict: Host variables as a dictionary.
+        dict: Host variables.
 
     Raises:
-        SystemExit: If the inventory file does not exist, or the host is not
-            found in the inventory, or there is an error running ansible-inventory.
+        SystemExit: If the inventory file is missing, host is not found, or parsing fails.
     """
     try:
         result = subprocess.run(
@@ -192,10 +163,13 @@ def get_host_vars(inventory_file, host):
 
 def parse_extra_ssh_options(host_vars):
     """
-    Parses extra SSH options from the inventory.
-    
-    Processes ansible_ssh_common_args and ansible_ssh_extra_args.
-    Returns a list of extra SSH options.
+    Parse extra SSH options from host variables.
+
+    Args:
+        host_vars (dict): Host variables from the inventory.
+
+    Returns:
+        list: Extra SSH options.
     """
     options = []
     common_args = host_vars.get("ansible_ssh_common_args")
@@ -218,14 +192,14 @@ def parse_extra_ssh_options(host_vars):
 def build_ssh_command(host_vars, host):
     # Extract variables with fallbacks
     """
-    Builds the SSH command list and target string from host variables.
+    Build the SSH command and target from host variables.
 
-    Extracts required connection variables from the host variables dictionary.
-    If a variable is not provided, falls back to the host name or other defaults.
-    Builds the base SSH command as a list.
-    If ENABLE_EXTRA_SSH_OPTIONS is True, adds extra SSH options from the inventory.
-    Builds the target string.
-    Returns the SSH command list, SSH password (if any), and target string.
+    Args:
+        host_vars (dict): Host variables from the inventory.
+        host (str): Host name.
+
+    Returns:
+        tuple: (ssh_cmd (list), ssh_pass (str or None), target (str))
     """
     host_ip = host_vars.get("ansible_host", host)
     # For user, check ansible_ssh_user then ansible_user.
@@ -259,16 +233,11 @@ def build_ssh_command(host_vars, host):
 
 def main():
     """
-    Main function to execute the ansible-ssh script.
+    Main entry point for ansible-ssh.
 
-    This function parses the command-line arguments and either prints the bash
-    completion script or executes an SSH connection using parameters from an
-    Ansible inventory. It validates the existence of the specified inventory
-    file and retrieves host variables. It constructs the SSH command with
-    necessary options, including additional SSH options if enabled. If a
-    password is required, it uses 'sshpass' to facilitate the connection.
+    Parses arguments, retrieves host variables, builds the SSH command,
+    and executes the SSH connection (using sshpass if a password is provided).
     """
-
     args = parse_arguments()
 
     # If --complete bash is requested, print the completion script and exit.
