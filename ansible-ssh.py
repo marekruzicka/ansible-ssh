@@ -3,7 +3,7 @@
 ansible-ssh: Connect to a host using connection variables from an Ansible inventory.
 
 Usage:
-    ansible-ssh -i <inventory_file> <host>
+    ansible-ssh -i <inventory_file> <host> [--print-only]
 
 Requirements:
     - ansible (for ansible-inventory)
@@ -49,6 +49,11 @@ _ansible_ssh_completion() {
         return 0
     fi
 
+    # Stop completion if --print-only was used
+    if [[ " ${COMP_WORDS[@]} " =~ " --print-only " ]]; then
+        return 0
+    fi
+
     # If completing the -C/--complete flag, suggest only 'bash' and stop further completion
     if [[ "${prev}" == "-C" || "${prev}" == "--complete" ]]; then
         COMPREPLY=( $(compgen -W "bash" -- "$cur") )
@@ -88,6 +93,12 @@ _ansible_ssh_completion() {
         return 0
     fi
 
+    # If host has been selected from the inventory, suggest additional argument completions.
+    if [ $COMP_CWORD -ge $((inv_index+2)) ]; then
+        COMPREPLY=( $(compgen -W "--print-only" -- "$cur") )
+        return 0
+    fi
+
     hostlist=$(ansible-inventory -i "$inv_file" --list 2>/dev/null | jq -r '._meta.hostvars | keys[]' 2>/dev/null)
     COMPREPLY=( $(compgen -W "$hostlist" -- "$cur") )
 }
@@ -102,8 +113,11 @@ def parse_arguments():
     Parse command-line arguments for ansible-ssh.
 
     Returns:
-        argparse.Namespace: Parsed arguments with inventory file, host, and optional completion flag.
-
+        argparse.Namespace: Parsed arguments with inventory file, host, and optional flags.
+        The optional flags include:
+            - --complete: Print bash completion script.
+            - --print-only: Print SSH command instead of executing it.
+    
     Raises:
         SystemExit: If required arguments are missing.
     """
@@ -116,6 +130,7 @@ def parse_arguments():
     )
     parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
     parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
+    parser.add_argument("--print-only", action="store_true", help="Print SSH command instead of executing it")
     parser.add_argument("host", nargs="?", help="Host to connect to")
     args = parser.parse_args()
 
@@ -237,6 +252,7 @@ def main():
 
     Parses arguments, retrieves host variables, builds the SSH command,
     and executes the SSH connection (using sshpass if a password is provided).
+    If the --print-only flag is provided, prints the SSH command instead of executing it.
     """
     args = parse_arguments()
 
@@ -266,6 +282,12 @@ def main():
             print("Error: sshpass is required for password-based SSH. Please install sshpass.", file=sys.stderr)
             sys.exit(1)
         ssh_cmd = ["sshpass", "-p", ssh_pass] + ssh_cmd
+
+    # If --print-only flag is provided, just print the SSH command instead of executing it.
+    if args.debug:
+        print("DEBUG: SSH command to be executed:")
+        print(" ".join(shlex.quote(arg) for arg in ssh_cmd))
+        sys.exit(0)
 
     try:
         subprocess.run(ssh_cmd)
