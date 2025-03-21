@@ -33,7 +33,7 @@ def print_bash_completion_script():
 # Bash completion script for {basename}
 
 _ansible_ssh_completion() {
-    local cur prev inv_index inv_file hostlist
+    local cur prev inv_index inv_file hostlist debug_count options
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -46,11 +46,6 @@ _ansible_ssh_completion() {
 
     # Stop completion if -h/--help is used
     if [[ " ${COMP_WORDS[@]} " =~ " -h " || " ${COMP_WORDS[@]} " =~ " --help " ]]; then
-        return 0
-    fi
-
-    # Stop completion if --print-only was used
-    if [[ " ${COMP_WORDS[@]} " =~ " --print-only " ]]; then
         return 0
     fi
 
@@ -95,7 +90,30 @@ _ansible_ssh_completion() {
 
     # If host has been selected from the inventory, suggest additional argument completions.
     if [ $COMP_CWORD -ge $((inv_index+2)) ]; then
-        COMPREPLY=( $(compgen -W "--print-only" -- "$cur") )
+        # Count the number of --debug and --print-only occurrences
+        # Allow 3 --debug occurrences and 1 --print-only
+        debug_count=0
+        print_only_count=0
+        for word in "${COMP_WORDS[@]}"; do
+            if [ "$word" == "--debug" ]; then
+                debug_count=$((debug_count+1))
+            fi
+            if [ "$word" == "--print-only" ]; then
+                print_only_count=$((print_only_count+1))
+            fi
+        done
+        options=""
+        if [ $print_only_count -eq 0 ]; then
+            options="--print-only"
+        fi
+        if [ $debug_count -lt 3 ]; then
+            if [ -z "$options" ]; then
+                options="--debug"
+            else
+                options="$options --debug"
+            fi
+        fi
+        COMPREPLY=( $(compgen -W "$options" -- "$cur") )
         return 0
     fi
 
@@ -108,6 +126,7 @@ complete -F _ansible_ssh_completion {basename}
     script = script.replace("{basename}", os.path.basename(sys.argv[0]))
     print(script)
 
+
 def parse_arguments():
     """
     Parse command-line arguments for ansible-ssh.
@@ -117,6 +136,7 @@ def parse_arguments():
         The optional flags include:
             - --complete: Print bash completion script.
             - --print-only: Print SSH command instead of executing it.
+            - --debug: Increase verbosity (can be used up to 3 times).
     
     Raises:
         SystemExit: If required arguments are missing.
@@ -125,12 +145,15 @@ def parse_arguments():
         description="Connect to a host using connection variables from an Ansible inventory.",
         epilog="EXAMPLES:\n"
                "  Connect to a host:\n\t %(prog)s -i inventory myhost\n\n"
+               "  Connect to a host with ssh verbosity:\n\t %(prog)s -i inventory myhost --debug --debug\n\n"
+               "  Print SSH command:\n\t %(prog)s -i inventory myhost --print-only\n\n"
                "  Generate and install bash completion script:\n\t %(prog)s -C bash | sudo tee /etc/bash_completion.d/%(prog)s",
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
     parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
     parser.add_argument("--print-only", action="store_true", help="Print SSH command instead of executing it")
+    parser.add_argument("--debug", action="count", default=0, help="Increase verbosity (can be used up to 3 times)")
     parser.add_argument("host", nargs="?", help="Host to connect to")
     args = parser.parse_args()
 
@@ -273,8 +296,11 @@ def main():
     # Build the SSH command and extract SSH password if any.
     ssh_cmd, ssh_pass, target = build_ssh_command(host_vars, args.host)
 
-    # Show the connection target and options (excluding the final target)
-    print("Connecting to {} with options: {}".format(target, " ".join(ssh_cmd[1:-1])))
+    # Insert the verbosity flags after "ssh"
+    if args.debug > 0:
+        debug_flags = ["-v"] * min(args.debug, 3)
+        ssh_cmd[1:1] = debug_flags
+        print("Connecting to {} with options: {}".format(target, " ".join(ssh_cmd[1:-1])))
 
     # If a password is provided, prepend sshpass to the command.
     if ssh_pass:
@@ -284,8 +310,8 @@ def main():
         ssh_cmd = ["sshpass", "-p", ssh_pass] + ssh_cmd
 
     # If --print-only flag is provided, just print the SSH command instead of executing it.
-    if args.debug:
-        print("DEBUG: SSH command to be executed:")
+    if args.print_only:
+        print("SSH command to be executed:")
         print(" ".join(shlex.quote(arg) for arg in ssh_cmd))
         sys.exit(0)
 
@@ -294,6 +320,7 @@ def main():
     except Exception as e:
         print(f"Error executing SSH: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
