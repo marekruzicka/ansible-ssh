@@ -1,6 +1,6 @@
-# ansible-ssh
+# ssh-ansible
 
-**ansible-ssh** is a command-line utility that enables SSH connection to a host, utilizing connection variables retrieved from an Ansible inventory file.  
+**ansible-ssh** *(name of the actual binary)* is a command-line utility that enables SSH connection to a host, utilizing connection variables retrieved from an Ansible inventory file.  
 It provides user-friendly bash command completion (inlcuding completing hosts from Ansible inventory file).
 It supports connection details (such as host, port, user, key, and even password). Extra SSH options via `ansible_ssh_common_args` and `ansible_ssh_extra_args` are *still experimental and not working properly*.
 
@@ -23,28 +23,6 @@ Simply run  `ansible-ssh -i inventory <host>`
 
 
 ## Installation
-### shell
-
-Clone the repository, link/copy somewhere into `$PATH`, and install bash completion script.  
-
-
-```bash
-# Probably don't need to install anything, but for the reference...
-sudo apt-get update
-sudo apt-get install git python3 ansible-core sshpass jq bash-completion -y
-
-git clone https://github.com/marekruzicka/ansible-ssh.git
-cd ansible-ssh
-chmod +x ansible-ssh/ansible-ssh.py
-
-# Link/copy somewhere within $PATH
-ln -s $PWD/ansible-ssh.py ~/.local/bin/ansible-ssh
-
-# Generate bash_completion script
-ansible-ssh -C bash | sudo tee /etc/bash_completion.d/ansible-ssh
-source /etc/bash_completion.d/ansible-ssh
-```
-
 ### pip
 Create or activate virtual env, install it using `pip`, and install bash completion script.
 ```bash

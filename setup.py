@@ -2,9 +2,9 @@ from setuptools import setup, find_packages
 
 setup(
     name="ssh-ansible",
-    version="0.2.0",
+    version="0.9.0",
     description="ansible-ssh -i inventory host (with bash completion :))",
-    long_description=open("README.md").read(),
+    long_description=open("PYPI.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/marekruzicka/ansible-ssh.git",
     author="Marek Ruzicka",
