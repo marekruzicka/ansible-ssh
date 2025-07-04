@@ -72,19 +72,75 @@ _ansible_ssh_completion() {
         fi
     done
 
-    # If completing the inventory file argument, complete file paths
+    # If completing the inventory file argument, check for ansible.cfg in standard locations
     if [ $COMP_CWORD -eq $inv_index ]; then
+        # Bash function to find ansible.cfg and extract inventory
+        _find_ansible_cfg_inventory() {
+            local cfg
+            local inv
+            # 1. ANSIBLE_CONFIG env
+            if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
+                cfg="$ANSIBLE_CONFIG"
+            elif [ -f "./ansible.cfg" ]; then
+                cfg="./ansible.cfg"
+            elif [ -f "$HOME/.ansible.cfg" ]; then
+                cfg="$HOME/.ansible.cfg"
+            elif [ -f "/etc/ansible/ansible.cfg" ]; then
+                cfg="/etc/ansible/ansible.cfg"
+            fi
+            if [ -n "$cfg" ]; then
+                inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
+                if [ -n "$inv" ]; then
+                    echo "$inv"
+                    return 0
+                fi
+            fi
+            return 1
+        }
+        
+        local inv_path=$(_find_ansible_cfg_inventory)
+            
+        # If we found an inventory in ansible.cfg and no input yet, suggest only that
+        if [ -n "$inv_path" ] && [ -z "$cur" ]; then
+            COMPREPLY=( "$inv_path" )
+            return 0
+        fi
+        
+        # If there's partial input, do normal file completion but prioritize config inventory
+        local completions=()
+        
+        # Add config inventory first if it matches the current input
+        if [ -n "$inv_path" ] && [[ "$inv_path" == "$cur"* ]]; then
+            completions+=( "$inv_path" )
+        fi
+        
+        # Add file completion for other inventory files, but avoid duplicates
         compopt -o nospace
         local IFS=$'\n'
         local files=( $(compgen -f -- "$cur") )
-        local completions=()
         for file in "${files[@]}"; do
-            if [ -d "$file" ]; then
-                completions+=( "${file}/" )
-            else
-                completions+=( "$file " )
+            # Skip if this file is already in completions (avoid duplicates)
+            local skip=false
+            for existing in "${completions[@]}"; do
+                # Compare canonical paths to avoid ./file vs file duplicates
+                local canonical_file canonical_existing
+                canonical_file=$(readlink -f "$file" 2>/dev/null || echo "$file")
+                canonical_existing=$(readlink -f "$existing" 2>/dev/null || echo "$existing")
+                if [ "$canonical_file" = "$canonical_existing" ]; then
+                    skip=true
+                    break
+                fi
+            done
+            
+            if [ "$skip" = false ]; then
+                if [ -d "$file" ]; then
+                    completions+=( "${file}/" )
+                else
+                    completions+=( "$file " )
+                fi
             fi
         done
+        
         COMPREPLY=( "${completions[@]}" )
         return 0
     fi
@@ -93,11 +149,37 @@ _ansible_ssh_completion() {
     if [ $inv_index -ne -1 ] && [[ -f "${COMP_WORDS[$inv_index]}" ]]; then
         inv_file="${COMP_WORDS[$inv_index]}"
     else
-        return 0
+        # If no explicit inventory provided, try to find one from ansible.cfg
+        _find_ansible_cfg_inventory() {
+            local cfg
+            local inv
+            if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
+                cfg="$ANSIBLE_CONFIG"
+            elif [ -f "./ansible.cfg" ]; then
+                cfg="./ansible.cfg"
+            elif [ -f "$HOME/.ansible.cfg" ]; then
+                cfg="$HOME/.ansible.cfg"
+            elif [ -f "/etc/ansible/ansible.cfg" ]; then
+                cfg="/etc/ansible/ansible.cfg"
+            fi
+            if [ -n "$cfg" ]; then
+                inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
+                if [ -n "$inv" ] && [ -f "$inv" ]; then
+                    echo "$inv"
+                    return 0
+                fi
+            fi
+            return 1
+        }
+        
+        inv_file=$(_find_ansible_cfg_inventory)
+        if [ -z "$inv_file" ]; then
+            return 0
+        fi
     fi
 
     # If host has been selected from the inventory, suggest additional argument completions.
-    if [ $COMP_CWORD -ge $((inv_index+2)) ]; then
+    if [ $COMP_CWORD -ge $((inv_index+2)) ] || ([ $inv_index -eq -1 ] && [ $COMP_CWORD -ge 2 ]); then
         # Count the number of --debug and --print-only occurrences
         # Allow 3 --debug occurrences and 1 --print-only
         debug_count=0
@@ -125,8 +207,15 @@ _ansible_ssh_completion() {
         return 0
     fi
 
-    hostlist=$(ansible-inventory -i "$inv_file" --list 2>/dev/null | jq -r '._meta.hostvars | keys[]' 2>/dev/null)
-    COMPREPLY=( $(compgen -W "$hostlist" -- "$cur") )
+    # Complete hostnames from the inventory
+    if [ -n "$inv_file" ] && [ -f "$inv_file" ]; then
+        # Try to get hostnames from both ._meta.hostvars (YAML format) and from all groups (INI format)
+        hostlist=$(ansible-inventory -i "$inv_file" --list 2>/dev/null | jq -r '
+            (._meta.hostvars | keys[]) // empty,
+            (.[] | select(type == "object" and has("hosts")) | .hosts[]?) // empty
+        ' 2>/dev/null | sort -u)
+        COMPREPLY=( $(compgen -W "$hostlist" -- "$cur") )
+    fi
 }
 
 complete -F _ansible_ssh_completion {basename}
