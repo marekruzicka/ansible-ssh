@@ -2,7 +2,7 @@
 
 **ansible-ssh** is a command-line utility that enables SSH connection to a host, utilizing connection variables retrieved from an Ansible inventory file.  
 It provides user-friendly bash command completion (inlcuding completing hosts from Ansible inventory file).
-It supports connection details (such as host, port, user, key, and even password). Extra SSH options via `ansible_ssh_common_args` and `ansible_ssh_extra_args` are *still experimental and not working properly*.
+It supports connection details (such as host, port, user, key, and even password), including extra SSH options via `ansible_ssh_common_args` and `ansible_ssh_extra_args`.
 
 ## Features
 
@@ -11,7 +11,7 @@ Simply run  `ansible-ssh -i inventory <host>`
 - **Automated Connection Parameters:** Extracts connection details from an Ansible inventory.
 - **Fallback Mechanism:** Uses standard SSH configuration (e.g., `~/.ssh/config`) for any unspecified settings.
 - **Bash Completion:** Generates a bash completion script that auto-completes host names based on your inventory.
-- **Extra SSH Options:** Incorporates additional SSH arguments defined in your inventory. (disabled for now)
+- **Extra SSH Options:** Incorporates additional SSH arguments defined in your inventory. (eg ProxyCommand)
 
 ## Requirements
 
