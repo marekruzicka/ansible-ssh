@@ -21,9 +21,6 @@ import sys
 import shutil
 import configparser
 
-# Set this to True to enable parsing of extra SSH options (experimental)
-ENABLE_EXTRA_SSH_OPTIONS = False
-
 ANSIBLE_CONFIG_LOCATIONS = [
     lambda: os.environ.get("ANSIBLE_CONFIG"),
     lambda: os.path.join(os.getcwd(), "ansible.cfg"),
@@ -402,7 +399,8 @@ def build_ssh_command(host_vars, host):
     Returns:
         tuple: (ssh_cmd (list), ssh_pass (str or None), target (str))
     """
-    host_ip = host_vars.get("ansible_host", host)
+    # For host, check ansible_ssh_host then ansible_host, then fall back to the original host name
+    host_ip = host_vars.get("ansible_ssh_host") or host_vars.get("ansible_host") or host
     # For user, check ansible_ssh_user then ansible_user.
     user = host_vars.get("ansible_ssh_user") or host_vars.get("ansible_user")
     port = host_vars.get("ansible_port")
@@ -418,9 +416,9 @@ def build_ssh_command(host_vars, host):
     if key:
         ssh_cmd.extend(["-i", key])
     
-    if ENABLE_EXTRA_SSH_OPTIONS:
-        extra_options = parse_extra_ssh_options(host_vars)
-        ssh_cmd.extend(extra_options)
+    # Parse and add extra SSH options (ProxyJump, etc.)
+    extra_options = parse_extra_ssh_options(host_vars)
+    ssh_cmd.extend(extra_options)
     
     # Build the target string
     if user:
