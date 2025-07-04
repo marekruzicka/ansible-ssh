@@ -19,9 +19,17 @@ import shlex
 import subprocess
 import sys
 import shutil
+import configparser
 
 # Set this to True to enable parsing of extra SSH options (experimental)
 ENABLE_EXTRA_SSH_OPTIONS = False
+
+ANSIBLE_CONFIG_LOCATIONS = [
+    lambda: os.environ.get("ANSIBLE_CONFIG"),
+    lambda: os.path.join(os.getcwd(), "ansible.cfg"),
+    lambda: os.path.expanduser("~/.ansible.cfg"),
+    lambda: "/etc/ansible/ansible.cfg",
+]
 
 def print_bash_completion_script():
     """
@@ -127,6 +135,27 @@ complete -F _ansible_ssh_completion {basename}
     print(script)
 
 
+def find_ansible_cfg():
+    """
+    Find ansible.cfg in the standard locations.
+    Returns the path if found, else None.
+    """
+    for loc in ANSIBLE_CONFIG_LOCATIONS:
+        path = loc()
+        if path and os.path.isfile(path):
+            return path
+    return None
+
+def get_default_inventory_from_cfg(cfg_path):
+    """
+    Parse ansible.cfg and return the default inventory file if set.
+    """
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if parser.has_section("defaults") and parser.has_option("defaults", "inventory"):
+        return parser.get("defaults", "inventory")
+    return None
+
 def parse_arguments():
     """
     Parse command-line arguments for ansible-ssh.
@@ -158,8 +187,16 @@ def parse_arguments():
     parser.add_argument("host", nargs="?", help="Host to connect to")
     args = parser.parse_args()
 
+    # If inventory is not provided, try to get it from ansible.cfg
+    if not args.inventory and not args.complete:
+        cfg_path = find_ansible_cfg()
+        if cfg_path:
+            inv = get_default_inventory_from_cfg(cfg_path)
+            if inv:
+                args.inventory = inv
+
     if not args.complete and (not args.inventory or not args.host):
-        parser.error("the following arguments are required: -i/--inventory, host")
+        parser.error("the following arguments are required: -i/--inventory (or ansible.cfg must exist in one of the standard locations), host")
     return args
 
 def get_host_vars(inventory_file, host):
