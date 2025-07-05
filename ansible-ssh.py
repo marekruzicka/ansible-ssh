@@ -45,8 +45,48 @@ _ansible_ssh_completion() {
 
     # Available options at the top level
     if [[ $COMP_CWORD -eq 1 ]]; then
-        COMPREPLY=( $(compgen -W "-C --complete -h --help -i --inventory" -- "$cur") )
-        return 0
+        # If current word starts with -, complete options
+        if [[ "$cur" == -* ]]; then
+            COMPREPLY=( $(compgen -W "-C --complete -h --help -i --inventory" -- "$cur") )
+            return 0
+        else
+            # Try to complete hosts from ansible.cfg inventory if available
+            _find_ansible_cfg_inventory() {
+                local cfg
+                local inv
+                if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
+                    cfg="$ANSIBLE_CONFIG"
+                elif [ -f "./ansible.cfg" ]; then
+                    cfg="./ansible.cfg"
+                elif [ -f "$HOME/.ansible.cfg" ]; then
+                    cfg="$HOME/.ansible.cfg"
+                elif [ -f "/etc/ansible/ansible.cfg" ]; then
+                    cfg="/etc/ansible/ansible.cfg"
+                fi
+                if [ -n "$cfg" ]; then
+                    inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
+                    if [ -n "$inv" ] && [ -f "$inv" ]; then
+                        echo "$inv"
+                        return 0
+                    fi
+                fi
+                return 1
+            }
+            
+            local cfg_inv=$(_find_ansible_cfg_inventory)
+            if [ -n "$cfg_inv" ]; then
+                hostlist=$(ansible-inventory -i "$cfg_inv" --list 2>/dev/null | jq -r '
+                    (._meta.hostvars | keys[]) // empty,
+                    (.[] | select(type == "object" and has("hosts")) | .hosts[]?) // empty
+                ' 2>/dev/null | sort -u)
+                COMPREPLY=( $(compgen -W "$hostlist" -- "$cur") )
+                return 0
+            fi
+            
+            # If no ansible.cfg inventory, complete options
+            COMPREPLY=( $(compgen -W "-C --complete -h --help -i --inventory" -- "$cur") )
+            return 0
+        fi
     fi
 
     # Stop completion if -h/--help is used
