@@ -54,7 +54,7 @@ Create or activate virtual env, install it using `pip`, and install bash complet
 virtualenv myvenv
 source myvenv/bin/activate
 
-# Install package using pip (yes pypi package has the name reversed)
+# Install package using pip (yes, pypi package has the name reversed. ansible-ssh is taken :-( )
 pip install ssh-ansible
 
 # Generate bash_completion script
