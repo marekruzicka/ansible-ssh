@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="ssh_ansible",
-    version="0.9.0",
+    version="1.0.0",
     description="SSH to host from ansible inventory",
     long_description=open("PYPI.md").read(),
     long_description_content_type="text/markdown",
@@ -26,7 +26,7 @@ setup(
       ],
     },
     classifiers=[
-        "Development Status :: 4 - Beta",
+        "Development Status :: 5 - Production/Stable",
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: POSIX :: Linux",
