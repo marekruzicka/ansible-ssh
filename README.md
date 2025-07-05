@@ -1,17 +1,19 @@
 # ansible-ssh
 
 **ansible-ssh** is a command-line utility that enables SSH connection to a host, utilizing connection variables retrieved from an Ansible inventory file.  
-It provides user-friendly bash command completion (inlcuding completing hosts from Ansible inventory file).
-It supports connection details (such as host, port, user, key, and even password). Extra SSH options via `ansible_ssh_common_args` and `ansible_ssh_extra_args` are *still experimental and not working properly*.
+It provides user-friendly bash command completion (including completing hosts from Ansible inventory file).
+It supports connection details (such as host, port, user, key, and password) as well as advanced SSH options like ProxyJump/ProxyCommand for bastion host configurations.
 
 ## Features
 
-Simply run  `ansible-ssh -i inventory <host>`
+Simply run `ansible-ssh <host>` (if ansible.cfg exists) or `ansible-ssh -i inventory <host>`
 
 - **Automated Connection Parameters:** Extracts connection details from an Ansible inventory.
+- **ansible.cfg Integration:** Automatically detects and uses inventory file from ansible.cfg when present.
+- **Advanced SSH Options:** Supports ProxyJump, ProxyCommand, and other SSH options via `ansible_ssh_common_args` and `ansible_ssh_extra_args`.
 - **Fallback Mechanism:** Uses standard SSH configuration (e.g., `~/.ssh/config`) for any unspecified settings.
-- **Bash Completion:** Generates a bash completion script that auto-completes host names based on your inventory.
-- **Extra SSH Options:** Incorporates additional SSH arguments defined in your inventory. (disabled for now)
+- **Smart Bash Completion:** Auto-completes inventory files from `ansible.cfg` and host names from your inventory.
+- **Multiple Inventory Formats:** Works with both YAML and INI inventory formats.
 
 ## Requirements
 
@@ -64,7 +66,7 @@ source /etc/bash_completion.d/ansible-ssh
 ## Usage
 ```bash
 $ ansible-ssh --help
-usage: ansible-ssh.py [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [--debug]
+usage: ansible-ssh [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [--debug]
 
 Connect to a host using connection variables from an Ansible inventory.
 
@@ -76,21 +78,61 @@ options:
   -C {bash}, --complete {bash}
                         Print bash completion script and exit
   -i INVENTORY, --inventory INVENTORY
-                        Path to the Ansible inventory file
+                        Path to the Ansible inventory file (optional if ansible.cfg exists)
   --print-only          Print SSH command instead of executing it
   --debug               Increase verbosity (can be used up to 3 times)
 
 EXAMPLES:
-  Connect to a host:
-         ansible-ssh.py -i inventory myhost
+  Connect to a host (using ansible.cfg):
+         ansible-ssh myhost
+
+  Connect to a host with specific inventory:
+         ansible-ssh -i inventory myhost
 
   Connect to a host with ssh verbosity:
-         ansible-ssh.py -i inventory myhost --debug --debug
+         ansible-ssh -i inventory myhost --debug --debug
 
-  Print SSH command:
-         ansible-ssh.py -i inventory myhost --print-only
+  Print SSH command without executing:
+         ansible-ssh myhost --print-only
 
   Generate and install bash completion script:
-         ansible-ssh.py -C bash | sudo tee /etc/bash_completion.d/ansible-ssh.py
+         ansible-ssh -C bash | sudo tee /etc/bash_completion.d/ansible-ssh
 
+```
+
+## ansible.cfg Integration
+
+ansible-ssh automatically detects and uses inventory configuration from `ansible.cfg` files, following Ansible's standard configuration hierarchy:
+
+1. `$ANSIBLE_CONFIG` environment variable
+2. `./ansible.cfg` (current directory)
+3. `~/.ansible.cfg` (user home directory)  
+4. `/etc/ansible/ansible.cfg` (system-wide)
+
+### Example Configuration
+
+```ini
+# ansible.cfg
+[defaults]
+inventory = ./hosts.ini
+```
+
+With this configuration, you can simply run:
+```bash
+# No need to specify -i inventory
+ansible-ssh myhost
+```
+
+### Smart Bash Completion
+
+The bash completion is ansible.cfg-aware:
+- When you type `ansible-ssh -i <TAB>`, it suggests the inventory file from ansible.cfg first
+- When no `-i` is specified, it uses the inventory from ansible.cfg for host completion
+
+```bash
+# Tab completion suggests ./hosts.ini from ansible.cfg
+ansible-ssh -i <TAB>
+
+# Tab completion shows hosts from the configured inventory
+ansible-ssh <TAB>
 ```
