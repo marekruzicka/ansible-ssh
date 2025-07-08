@@ -21,7 +21,7 @@ setup(
     install_requires=[
       "ansible-core>=2.9",
     ],
-    extra_require={
+    extras_require={
       "dev": [
         "twine>=6.1",
       ],
