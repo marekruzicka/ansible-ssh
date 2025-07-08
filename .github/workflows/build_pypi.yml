@@ -10,6 +10,14 @@ on:
     branches:
       - main
   workflow_dispatch:
+<<<<<<< HEAD
+=======
+    inputs:
+      version:
+        description: 'Optional version number to use for the build/release'
+        required: false
+        type: string
+>>>>>>> aff4732 (Add version input to workflow and update setup.py to use environment variable for version)
 
 jobs:
   build:
@@ -31,6 +39,8 @@ jobs:
 
     - name: Build package
       run: python -m build
+      env:
+        VERSION: ${{ github.event.inputs.version || '' }}
 
     - name: Check package with twine
       run: twine check dist/*
@@ -40,3 +50,32 @@ jobs:
       with:
         name: dist
         path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist/
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install twine
+      run: pip install twine
+
+    - name: Publish to PyPI
+      run: twine upload dist/*
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
