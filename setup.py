@@ -1,9 +1,13 @@
 from setuptools import setup, find_packages
 import os
 
+version = os.environ.get("VERSION")
+if not version:
+    version = "1.0.0"
+
 setup(
     name="ssh_ansible",
-    version=os.environ.get("VERSION", "1.0.0"),
+    version=version,
     description="SSH to host from ansible inventory",
     long_description=open("PYPI.md").read(),
     long_description_content_type="text/markdown",
