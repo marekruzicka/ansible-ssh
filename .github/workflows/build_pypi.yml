@@ -34,10 +34,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install build twine
 
+    - name: Prepare README for PyPI
+      run: |
+        awk 'BEGIN{p=1} /^### shell/{p=0} /^### pip/{p=1; next} p' README.md > README_pypi.md
+
     - name: Build package
       run: python -m build
       env: 
-        # Only set VERSION if input is provided
         VERSION: ${{ github.event.inputs.version != '' && github.event.inputs.version || env.VERSION }}
 
     - name: Check package with twine

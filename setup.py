@@ -5,11 +5,14 @@ version = os.environ.get("VERSION")
 if not version:
     version = "1.0.0"
 
+# Prefer README_pypi.md if it exists, else fallback to README.md
+readme_file = "README_pypi.md" if os.path.exists("README_pypi.md") else "README.md"
+
 setup(
     name="ssh_ansible",
     version=version,
     description="SSH to host from ansible inventory",
-    long_description=open("PYPI.md").read(),
+    long_description=open(readme_file).read(),
     long_description_content_type="text/markdown",
     url="https://github.com/marekruzicka/ansible-ssh.git",
     author="Marek Ruzicka",
@@ -33,7 +36,6 @@ setup(
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
         "Operating System :: POSIX :: Linux",
         "Environment :: Console"
     ],
