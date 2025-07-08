@@ -10,14 +10,11 @@ on:
     branches:
       - main
   workflow_dispatch:
-<<<<<<< HEAD
-=======
     inputs:
       version:
         description: 'Optional version number to use for the build/release'
         required: false
         type: string
->>>>>>> aff4732 (Add version input to workflow and update setup.py to use environment variable for version)
 
 jobs:
   build:
