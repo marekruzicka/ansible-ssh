@@ -36,8 +36,9 @@ jobs:
 
     - name: Build package
       run: python -m build
-      env:
-        VERSION: ${{ github.event.inputs.version || '' }}
+      env: 
+        # Only set VERSION if input is provided
+        VERSION: ${{ github.event.inputs.version != '' && github.event.inputs.version || env.VERSION }}
 
     - name: Check package with twine
       run: twine check dist/*
