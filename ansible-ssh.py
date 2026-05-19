@@ -292,7 +292,6 @@ def get_host_vars(inventory_file, host):
     Raises:
         SystemExit: If ansible-inventory command fails, host is not found, or produces invalid JSON.
     """
-    # First check if the host exists in the inventory by listing all hosts
     try:
         list_result = subprocess.run(
             ["ansible-inventory", "-i", inventory_file, "--list"],
@@ -304,53 +303,31 @@ def get_host_vars(inventory_file, host):
     except subprocess.CalledProcessError as e:
         print(f"Error running ansible-inventory --list:\n{e.stderr}", file=sys.stderr)
         sys.exit(1)
-    
+
     try:
         inventory_data = json.loads(list_result.stdout)
     except json.JSONDecodeError as e:
         print(f"Error parsing JSON from ansible-inventory --list: {e}", file=sys.stderr)
         sys.exit(1)
-    
-    # Check if host exists in the inventory (either in _meta.hostvars or in any group's hosts)
-    host_exists = False
-    if "_meta" in inventory_data and "hostvars" in inventory_data["_meta"] and host in inventory_data["_meta"]["hostvars"]:
-        host_exists = True
-    else:
-        # Check in all groups for hosts arrays
-        for key, value in inventory_data.items():
-            if isinstance(value, dict) and "hosts" in value:
-                if isinstance(value["hosts"], list) and host in value["hosts"]:
-                    host_exists = True
-                    break
-                elif isinstance(value["hosts"], dict) and host in value["hosts"]:
-                    host_exists = True
-                    break
-    
-    if not host_exists:
+
+    # Collect all known hosts: from _meta.hostvars and from group hosts lists
+    known_hosts = set()
+    if "_meta" in inventory_data and "hostvars" in inventory_data["_meta"]:
+        known_hosts.update(inventory_data["_meta"]["hostvars"].keys())
+    for value in inventory_data.values():
+        if isinstance(value, dict) and "hosts" in value:
+            hosts_entry = value["hosts"]
+            if isinstance(hosts_entry, list):
+                known_hosts.update(hosts_entry)
+            elif isinstance(hosts_entry, dict):
+                known_hosts.update(hosts_entry.keys())
+
+    if host not in known_hosts:
         print(f"Error: Host '{host}' not found in inventory '{inventory_file}'.", file=sys.stderr)
         sys.exit(1)
-    
-    # Host exists, now get its variables
-    try:
-        result = subprocess.run(
-            ["ansible-inventory", "-i", inventory_file, "--host", host],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"Error running ansible-inventory --host:\n{e.stderr}", file=sys.stderr)
-        sys.exit(1)
-    
-    try:
-        host_vars = json.loads(result.stdout)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing JSON from ansible-inventory --host: {e}", file=sys.stderr)
-        sys.exit(1)
 
-    # Return the host variables (may be empty dict if no variables defined)
-    return host_vars
+    # Extract host vars directly from _meta.hostvars (may be empty dict if no variables defined)
+    return inventory_data.get("_meta", {}).get("hostvars", {}).get(host, {})
 
 def parse_extra_ssh_options(host_vars):
     """
