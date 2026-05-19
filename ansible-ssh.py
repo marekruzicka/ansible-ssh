@@ -447,7 +447,19 @@ def main():
     # If --print-only flag is provided, just print the SSH command instead of executing it.
     if args.print_only:
         print("SSH command to be executed:")
-        print(" ".join(shlex.quote(arg) for arg in ssh_cmd))
+        # Mask the password in the printed command to avoid leaking it
+        display_cmd = []
+        mask_next = False
+        for arg in ssh_cmd:
+            if mask_next:
+                display_cmd.append("<password>")
+                mask_next = False
+            elif arg == "-p" and display_cmd and display_cmd[0] == "sshpass":
+                display_cmd.append(arg)
+                mask_next = True
+            else:
+                display_cmd.append(arg)
+        print(" ".join(shlex.quote(arg) for arg in display_cmd))
         sys.exit(0)
 
     try:
