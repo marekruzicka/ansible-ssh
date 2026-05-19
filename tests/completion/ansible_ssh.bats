@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
 
 REPO_ROOT="$(cd "$(dirname "$BATS_TEST_FILENAME")/../.." && pwd)"
-INV_FILE="$REPO_ROOT/test_files/inventory"
-INV_PROXY="$REPO_ROOT/test_files/hosts_proxy.yaml"
+INV_FILE="$REPO_ROOT/tests/fixtures/inventory"
+INV_PROXY="$REPO_ROOT/tests/fixtures/hosts_proxy.yaml"
 
 setup() {
     # Source the generated completion script so _ansible_ssh_completion is defined

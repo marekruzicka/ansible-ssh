@@ -9,9 +9,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
-INV_YAML = os.path.join(REPO_ROOT, "test_files", "inventory")
-INV_INI = os.path.join(REPO_ROOT, "test_files", "hosts.ini")
-INV_PROXY = os.path.join(REPO_ROOT, "test_files", "hosts_proxy.yaml")
+INV_YAML = os.path.join(REPO_ROOT, "tests", "fixtures", "inventory")
+INV_INI = os.path.join(REPO_ROOT, "tests", "fixtures", "hosts.ini")
+INV_PROXY = os.path.join(REPO_ROOT, "tests", "fixtures", "hosts_proxy.yaml")
 
 
 class TestGetHostVars:

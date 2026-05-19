@@ -3,7 +3,7 @@ import pytest
 from ssh_ansible.ansible_ssh import find_ansible_cfg, get_default_inventory_from_cfg
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
-TEST_FILES = os.path.join(REPO_ROOT, "test_files")
+TEST_FILES = os.path.join(REPO_ROOT, "tests", "fixtures")
 
 
 class TestGetDefaultInventoryFromCfg:
