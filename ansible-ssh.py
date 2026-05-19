@@ -43,6 +43,27 @@ _ansible_ssh_completion() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
+    _find_ansible_cfg_inventory() {
+        local cfg inv
+        if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
+            cfg="$ANSIBLE_CONFIG"
+        elif [ -f "./ansible.cfg" ]; then
+            cfg="./ansible.cfg"
+        elif [ -f "$HOME/.ansible.cfg" ]; then
+            cfg="$HOME/.ansible.cfg"
+        elif [ -f "/etc/ansible/ansible.cfg" ]; then
+            cfg="/etc/ansible/ansible.cfg"
+        fi
+        if [ -n "$cfg" ]; then
+            inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
+            if [ -n "$inv" ] && [ -f "$inv" ]; then
+                echo "$inv"
+                return 0
+            fi
+        fi
+        return 1
+    }
+
     # Available options at the top level
     if [[ $COMP_CWORD -eq 1 ]]; then
         # If current word starts with -, complete options
@@ -51,28 +72,6 @@ _ansible_ssh_completion() {
             return 0
         else
             # Try to complete hosts from ansible.cfg inventory if available
-            _find_ansible_cfg_inventory() {
-                local cfg
-                local inv
-                if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
-                    cfg="$ANSIBLE_CONFIG"
-                elif [ -f "./ansible.cfg" ]; then
-                    cfg="./ansible.cfg"
-                elif [ -f "$HOME/.ansible.cfg" ]; then
-                    cfg="$HOME/.ansible.cfg"
-                elif [ -f "/etc/ansible/ansible.cfg" ]; then
-                    cfg="/etc/ansible/ansible.cfg"
-                fi
-                if [ -n "$cfg" ]; then
-                    inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
-                    if [ -n "$inv" ] && [ -f "$inv" ]; then
-                        echo "$inv"
-                        return 0
-                    fi
-                fi
-                return 1
-            }
-            
             local cfg_inv=$(_find_ansible_cfg_inventory)
             if [ -n "$cfg_inv" ]; then
                 hostlist=$(ansible-inventory -i "$cfg_inv" --list 2>/dev/null | jq -r '
@@ -111,30 +110,6 @@ _ansible_ssh_completion() {
 
     # If completing the inventory file argument, check for ansible.cfg in standard locations
     if [ $COMP_CWORD -eq $inv_index ]; then
-        # Bash function to find ansible.cfg and extract inventory
-        _find_ansible_cfg_inventory() {
-            local cfg
-            local inv
-            # 1. ANSIBLE_CONFIG env
-            if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
-                cfg="$ANSIBLE_CONFIG"
-            elif [ -f "./ansible.cfg" ]; then
-                cfg="./ansible.cfg"
-            elif [ -f "$HOME/.ansible.cfg" ]; then
-                cfg="$HOME/.ansible.cfg"
-            elif [ -f "/etc/ansible/ansible.cfg" ]; then
-                cfg="/etc/ansible/ansible.cfg"
-            fi
-            if [ -n "$cfg" ]; then
-                inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
-                if [ -n "$inv" ]; then
-                    echo "$inv"
-                    return 0
-                fi
-            fi
-            return 1
-        }
-        
         local inv_path=$(_find_ansible_cfg_inventory)
             
         # If we found an inventory in ansible.cfg and no input yet, suggest only that
@@ -187,28 +162,6 @@ _ansible_ssh_completion() {
         inv_file="${COMP_WORDS[$inv_index]}"
     else
         # If no explicit inventory provided, try to find one from ansible.cfg
-        _find_ansible_cfg_inventory() {
-            local cfg
-            local inv
-            if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
-                cfg="$ANSIBLE_CONFIG"
-            elif [ -f "./ansible.cfg" ]; then
-                cfg="./ansible.cfg"
-            elif [ -f "$HOME/.ansible.cfg" ]; then
-                cfg="$HOME/.ansible.cfg"
-            elif [ -f "/etc/ansible/ansible.cfg" ]; then
-                cfg="/etc/ansible/ansible.cfg"
-            fi
-            if [ -n "$cfg" ]; then
-                inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
-                if [ -n "$inv" ] && [ -f "$inv" ]; then
-                    echo "$inv"
-                    return 0
-                fi
-            fi
-            return 1
-        }
-        
         inv_file=$(_find_ansible_cfg_inventory)
         if [ -z "$inv_file" ]; then
             return 0
