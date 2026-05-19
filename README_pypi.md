@@ -44,7 +44,7 @@ source /etc/bash_completion.d/ansible-ssh
 ## Usage
 ```bash
 $ ansible-ssh --help
-usage: ansible-ssh [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [--debug]
+usage: ansible-ssh [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [-v]
 
 Connect to a host using connection variables from an Ansible inventory.
 
@@ -58,7 +58,7 @@ options:
   -i INVENTORY, --inventory INVENTORY
                         Path to the Ansible inventory file (optional if ansible.cfg exists)
   --print-only          Print SSH command instead of executing it
-  --debug               Increase verbosity (can be used up to 3 times)
+  -v, --verbose         Increase verbosity, stackable up to -vvv
 
 EXAMPLES:
   Connect to a host (using ansible.cfg):
@@ -68,7 +68,7 @@ EXAMPLES:
          ansible-ssh -i inventory myhost
 
   Connect to a host with ssh verbosity:
-         ansible-ssh -i inventory myhost --debug --debug
+         ansible-ssh -i inventory myhost -vv
 
   Print SSH command without executing:
          ansible-ssh myhost --print-only
