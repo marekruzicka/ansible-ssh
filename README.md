@@ -36,11 +36,11 @@ sudo apt-get update
 sudo apt-get install git python3 ansible-core sshpass jq bash-completion -y
 
 git clone https://github.com/marekruzicka/ansible-ssh.git
-cd ansible-ssh
 chmod +x ansible-ssh/ansible-ssh.py
 
-# Link/copy somewhere within $PATH
-ln -s $PWD/ansible-ssh.py ~/.local/bin/ansible-ssh
+# Link/copy somewhere within $PATH eg.:
+mkdir -p ~/.local/bin/
+ln -s $PWD/ansible-ssh/ansible-ssh.py ~/.local/bin/ansible-ssh
 
 # Generate bash_completion script
 ansible-ssh -C bash | sudo tee /etc/bash_completion.d/ansible-ssh
