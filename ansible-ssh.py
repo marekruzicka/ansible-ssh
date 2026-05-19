@@ -516,7 +516,8 @@ def main():
         sys.exit(0)
 
     try:
-        subprocess.run(ssh_cmd)
+        result = subprocess.run(ssh_cmd)
+        sys.exit(result.returncode)
     except Exception as e:
         print(f"Error executing SSH: {e}", file=sys.stderr)
         sys.exit(1)
