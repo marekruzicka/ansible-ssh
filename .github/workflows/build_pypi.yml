@@ -6,16 +6,50 @@ name: Build PyPI Package
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: ["**"]
+    tags: ["v*"]
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x'
+
+    - name: Install Python test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest ansible-core
+
+    - name: Install bats
+      run: sudo apt-get install -y bats
+
+    - name: Run Python tests
+      run: pytest tests/ -v
+      env:
+        PYTHONPATH: src
+
+    - name: Run bash completion tests
+      run: bats tests/completion/
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: >-
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.event_name == 'workflow_dispatch'
 
     steps:
     - name: Checkout code

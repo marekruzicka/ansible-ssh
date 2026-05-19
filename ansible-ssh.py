@@ -191,7 +191,11 @@ _ansible_ssh_completion() {
                 options="$options -v"
             fi
         fi
-        COMPREPLY=( $(compgen -W "$options" -- "$cur") )
+        if [ -n "$options" ]; then
+            COMPREPLY=( $(compgen -W "$options" -- "$cur") )
+        else
+            COMPREPLY=()
+        fi
         return 0
     fi
 
