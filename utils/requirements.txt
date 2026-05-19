@@ -1,0 +1,4 @@
+# Dev/build dependencies (also declared in pyproject.toml [project.optional-dependencies] dev)
+build
+setuptools-scm
+twine>=6.1
