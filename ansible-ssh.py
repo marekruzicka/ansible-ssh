@@ -485,6 +485,11 @@ def main():
             print_bash_completion_script()
             sys.exit(0)
 
+    # Check that ansible-inventory is available.
+    if not shutil.which("ansible-inventory"):
+        print("Error: ansible-inventory is required. Please install ansible.", file=sys.stderr)
+        sys.exit(1)
+
     # Check that the inventory file exists.
     if not os.path.exists(args.inventory):
         print(f"Error: Inventory file '{args.inventory}' does not exist.", file=sys.stderr)
