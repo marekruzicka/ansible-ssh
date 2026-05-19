@@ -25,28 +25,6 @@ Simply run `ansible-ssh <host>` (if ansible.cfg exists) or `ansible-ssh -i inven
 
 
 ## Installation
-### shell
-
-Clone the repository, link/copy somewhere into `$PATH`, and install bash completion script.  
-
-
-```bash
-# Probably don't need to install anything, but for the reference...
-sudo apt-get update
-sudo apt-get install git python3 ansible-core sshpass jq bash-completion -y
-
-git clone https://github.com/marekruzicka/ansible-ssh.git
-chmod +x ansible-ssh/ansible-ssh.py
-
-# Link/copy somewhere within $PATH eg.:
-mkdir -p ~/.local/bin/
-ln -s $PWD/ansible-ssh/ansible-ssh.py ~/.local/bin/ansible-ssh
-
-# Generate bash_completion script
-ansible-ssh -C bash | sudo tee /etc/bash_completion.d/ansible-ssh
-source /etc/bash_completion.d/ansible-ssh
-```
-
 ### pip
 Create or activate virtual env, install it using `pip`, and install bash completion script.
 ```bash

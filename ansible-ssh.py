@@ -38,10 +38,31 @@ def print_bash_completion_script():
 # Bash completion script for {basename}
 
 _ansible_ssh_completion() {
-    local cur prev inv_index inv_file hostlist debug_count options
+    local cur prev inv_index inv_file hostlist verbose_count options
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    _find_ansible_cfg_inventory() {
+        local cfg inv
+        if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
+            cfg="$ANSIBLE_CONFIG"
+        elif [ -f "./ansible.cfg" ]; then
+            cfg="./ansible.cfg"
+        elif [ -f "$HOME/.ansible.cfg" ]; then
+            cfg="$HOME/.ansible.cfg"
+        elif [ -f "/etc/ansible/ansible.cfg" ]; then
+            cfg="/etc/ansible/ansible.cfg"
+        fi
+        if [ -n "$cfg" ]; then
+            inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
+            if [ -n "$inv" ] && [ -f "$inv" ]; then
+                echo "$inv"
+                return 0
+            fi
+        fi
+        return 1
+    }
 
     # Available options at the top level
     if [[ $COMP_CWORD -eq 1 ]]; then
@@ -51,28 +72,6 @@ _ansible_ssh_completion() {
             return 0
         else
             # Try to complete hosts from ansible.cfg inventory if available
-            _find_ansible_cfg_inventory() {
-                local cfg
-                local inv
-                if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
-                    cfg="$ANSIBLE_CONFIG"
-                elif [ -f "./ansible.cfg" ]; then
-                    cfg="./ansible.cfg"
-                elif [ -f "$HOME/.ansible.cfg" ]; then
-                    cfg="$HOME/.ansible.cfg"
-                elif [ -f "/etc/ansible/ansible.cfg" ]; then
-                    cfg="/etc/ansible/ansible.cfg"
-                fi
-                if [ -n "$cfg" ]; then
-                    inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
-                    if [ -n "$inv" ] && [ -f "$inv" ]; then
-                        echo "$inv"
-                        return 0
-                    fi
-                fi
-                return 1
-            }
-            
             local cfg_inv=$(_find_ansible_cfg_inventory)
             if [ -n "$cfg_inv" ]; then
                 hostlist=$(ansible-inventory -i "$cfg_inv" --list 2>/dev/null | jq -r '
@@ -111,30 +110,6 @@ _ansible_ssh_completion() {
 
     # If completing the inventory file argument, check for ansible.cfg in standard locations
     if [ $COMP_CWORD -eq $inv_index ]; then
-        # Bash function to find ansible.cfg and extract inventory
-        _find_ansible_cfg_inventory() {
-            local cfg
-            local inv
-            # 1. ANSIBLE_CONFIG env
-            if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
-                cfg="$ANSIBLE_CONFIG"
-            elif [ -f "./ansible.cfg" ]; then
-                cfg="./ansible.cfg"
-            elif [ -f "$HOME/.ansible.cfg" ]; then
-                cfg="$HOME/.ansible.cfg"
-            elif [ -f "/etc/ansible/ansible.cfg" ]; then
-                cfg="/etc/ansible/ansible.cfg"
-            fi
-            if [ -n "$cfg" ]; then
-                inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
-                if [ -n "$inv" ]; then
-                    echo "$inv"
-                    return 0
-                fi
-            fi
-            return 1
-        }
-        
         local inv_path=$(_find_ansible_cfg_inventory)
             
         # If we found an inventory in ansible.cfg and no input yet, suggest only that
@@ -187,28 +162,6 @@ _ansible_ssh_completion() {
         inv_file="${COMP_WORDS[$inv_index]}"
     else
         # If no explicit inventory provided, try to find one from ansible.cfg
-        _find_ansible_cfg_inventory() {
-            local cfg
-            local inv
-            if [ -n "$ANSIBLE_CONFIG" ] && [ -f "$ANSIBLE_CONFIG" ]; then
-                cfg="$ANSIBLE_CONFIG"
-            elif [ -f "./ansible.cfg" ]; then
-                cfg="./ansible.cfg"
-            elif [ -f "$HOME/.ansible.cfg" ]; then
-                cfg="$HOME/.ansible.cfg"
-            elif [ -f "/etc/ansible/ansible.cfg" ]; then
-                cfg="/etc/ansible/ansible.cfg"
-            fi
-            if [ -n "$cfg" ]; then
-                inv=$(awk -F '=' '/^[[:space:]]*inventory[[:space:]]*=/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}' "$cfg")
-                if [ -n "$inv" ] && [ -f "$inv" ]; then
-                    echo "$inv"
-                    return 0
-                fi
-            fi
-            return 1
-        }
-        
         inv_file=$(_find_ansible_cfg_inventory)
         if [ -z "$inv_file" ]; then
             return 0
@@ -217,13 +170,11 @@ _ansible_ssh_completion() {
 
     # If host has been selected from the inventory, suggest additional argument completions.
     if [ $COMP_CWORD -ge $((inv_index+2)) ] || ([ $inv_index -eq -1 ] && [ $COMP_CWORD -ge 2 ]); then
-        # Count the number of --debug and --print-only occurrences
-        # Allow 3 --debug occurrences and 1 --print-only
-        debug_count=0
+        verbose_count=0
         print_only_count=0
         for word in "${COMP_WORDS[@]}"; do
-            if [ "$word" == "--debug" ]; then
-                debug_count=$((debug_count+1))
+            if [ "$word" == "-v" ]; then
+                verbose_count=$((verbose_count+1))
             fi
             if [ "$word" == "--print-only" ]; then
                 print_only_count=$((print_only_count+1))
@@ -233,14 +184,18 @@ _ansible_ssh_completion() {
         if [ $print_only_count -eq 0 ]; then
             options="--print-only"
         fi
-        if [ $debug_count -lt 3 ]; then
+        if [ $verbose_count -eq 0 ]; then
             if [ -z "$options" ]; then
-                options="--debug"
+                options="-v"
             else
-                options="$options --debug"
+                options="$options -v"
             fi
         fi
-        COMPREPLY=( $(compgen -W "$options" -- "$cur") )
+        if [ -n "$options" ]; then
+            COMPREPLY=( $(compgen -W "$options" -- "$cur") )
+        else
+            COMPREPLY=()
+        fi
         return 0
     fi
 
@@ -291,17 +246,17 @@ def parse_arguments():
         The optional flags include:
             - --complete: Print bash completion script.
             - --print-only: Print SSH command instead of executing it.
-            - --debug: Increase verbosity (can be used up to 3 times).
+            - -v/--verbose: Increase SSH verbosity (stackable: -v, -vv, -vvv).
     
     Raises:
         SystemExit: If required arguments are missing.
     """
     parser = argparse.ArgumentParser(
-        usage="%(prog)s [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [--debug]",
+        usage="%(prog)s [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [-v]",
         description="Connect to a host using connection variables from an Ansible inventory.",
         epilog="EXAMPLES:\n"
                "  Connect to a host:\n\t %(prog)s -i inventory myhost\n\n"
-               "  Connect to a host with ssh verbosity:\n\t %(prog)s -i inventory myhost --debug --debug\n\n"
+               "  Connect to a host with ssh verbosity:\n\t %(prog)s -i inventory myhost -vv\n\n"
                "  Print SSH command:\n\t %(prog)s -i inventory myhost --print-only\n\n"
                "  Generate and install bash completion script:\n\t %(prog)s -C bash | sudo tee /etc/bash_completion.d/%(prog)s",
         formatter_class=argparse.RawTextHelpFormatter
@@ -309,7 +264,7 @@ def parse_arguments():
     parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
     parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
     parser.add_argument("--print-only", action="store_true", help="Print SSH command instead of executing it")
-    parser.add_argument("--debug", action="count", default=0, help="Increase verbosity (can be used up to 3 times)")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase SSH verbosity, stackable up to -vvv")
     parser.add_argument("host", nargs="?", help="Host to connect to")
     args = parser.parse_args()
 
@@ -339,7 +294,6 @@ def get_host_vars(inventory_file, host):
     Raises:
         SystemExit: If ansible-inventory command fails, host is not found, or produces invalid JSON.
     """
-    # First check if the host exists in the inventory by listing all hosts
     try:
         list_result = subprocess.run(
             ["ansible-inventory", "-i", inventory_file, "--list"],
@@ -351,53 +305,31 @@ def get_host_vars(inventory_file, host):
     except subprocess.CalledProcessError as e:
         print(f"Error running ansible-inventory --list:\n{e.stderr}", file=sys.stderr)
         sys.exit(1)
-    
+
     try:
         inventory_data = json.loads(list_result.stdout)
     except json.JSONDecodeError as e:
         print(f"Error parsing JSON from ansible-inventory --list: {e}", file=sys.stderr)
         sys.exit(1)
-    
-    # Check if host exists in the inventory (either in _meta.hostvars or in any group's hosts)
-    host_exists = False
-    if "_meta" in inventory_data and "hostvars" in inventory_data["_meta"] and host in inventory_data["_meta"]["hostvars"]:
-        host_exists = True
-    else:
-        # Check in all groups for hosts arrays
-        for key, value in inventory_data.items():
-            if isinstance(value, dict) and "hosts" in value:
-                if isinstance(value["hosts"], list) and host in value["hosts"]:
-                    host_exists = True
-                    break
-                elif isinstance(value["hosts"], dict) and host in value["hosts"]:
-                    host_exists = True
-                    break
-    
-    if not host_exists:
+
+    # Collect all known hosts: from _meta.hostvars and from group hosts lists
+    known_hosts = set()
+    if "_meta" in inventory_data and "hostvars" in inventory_data["_meta"]:
+        known_hosts.update(inventory_data["_meta"]["hostvars"].keys())
+    for value in inventory_data.values():
+        if isinstance(value, dict) and "hosts" in value:
+            hosts_entry = value["hosts"]
+            if isinstance(hosts_entry, list):
+                known_hosts.update(hosts_entry)
+            elif isinstance(hosts_entry, dict):
+                known_hosts.update(hosts_entry.keys())
+
+    if host not in known_hosts:
         print(f"Error: Host '{host}' not found in inventory '{inventory_file}'.", file=sys.stderr)
         sys.exit(1)
-    
-    # Host exists, now get its variables
-    try:
-        result = subprocess.run(
-            ["ansible-inventory", "-i", inventory_file, "--host", host],
-            check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-    except subprocess.CalledProcessError as e:
-        print(f"Error running ansible-inventory --host:\n{e.stderr}", file=sys.stderr)
-        sys.exit(1)
-    
-    try:
-        host_vars = json.loads(result.stdout)
-    except json.JSONDecodeError as e:
-        print(f"Error parsing JSON from ansible-inventory --host: {e}", file=sys.stderr)
-        sys.exit(1)
 
-    # Return the host variables (may be empty dict if no variables defined)
-    return host_vars
+    # Extract host vars directly from _meta.hostvars (may be empty dict if no variables defined)
+    return inventory_data.get("_meta", {}).get("hostvars", {}).get(host, {})
 
 def parse_extra_ssh_options(host_vars):
     """
@@ -428,7 +360,6 @@ def parse_extra_ssh_options(host_vars):
     return options
 
 def build_ssh_command(host_vars, host):
-    # Extract variables with fallbacks
     """
     Build the SSH command and target from host variables.
 
@@ -486,6 +417,11 @@ def main():
             print_bash_completion_script()
             sys.exit(0)
 
+    # Check that ansible-inventory is available.
+    if not shutil.which("ansible-inventory"):
+        print("Error: ansible-inventory is required. Please install ansible.", file=sys.stderr)
+        sys.exit(1)
+
     # Check that the inventory file exists.
     if not os.path.exists(args.inventory):
         print(f"Error: Inventory file '{args.inventory}' does not exist.", file=sys.stderr)
@@ -496,11 +432,12 @@ def main():
 
     # Build the SSH command and extract SSH password if any.
     ssh_cmd, ssh_pass, target = build_ssh_command(host_vars, args.host)
+    ssh_env = None
 
     # Insert the verbosity flags after "ssh"
-    if args.debug > 0:
-        debug_flags = ["-v"] * min(args.debug, 3)
-        ssh_cmd[1:1] = debug_flags
+    if args.verbose > 0:
+        verbose_flags = ["-v"] * min(args.verbose, 3)
+        ssh_cmd[1:1] = verbose_flags
         print("Connecting to {} with options: {}".format(target, " ".join(ssh_cmd[1:-1])))
 
     # If a password is provided, prepend sshpass to the command.
@@ -508,7 +445,11 @@ def main():
         if not shutil.which("sshpass"):
             print("Error: sshpass is required for password-based SSH. Please install sshpass.", file=sys.stderr)
             sys.exit(1)
-        ssh_cmd = ["sshpass", "-p", ssh_pass] + ssh_cmd
+        # Use sshpass -e (reads from SSHPASS env var) instead of -p to avoid
+        # exposing the password in the process list (/proc/<pid>/cmdline).
+        ssh_env = os.environ.copy()
+        ssh_env["SSHPASS"] = ssh_pass
+        ssh_cmd = ["sshpass", "-e"] + ssh_cmd
 
     # If --print-only flag is provided, just print the SSH command instead of executing it.
     if args.print_only:
@@ -517,7 +458,8 @@ def main():
         sys.exit(0)
 
     try:
-        subprocess.run(ssh_cmd)
+        result = subprocess.run(ssh_cmd, env=ssh_env)
+        sys.exit(result.returncode)
     except Exception as e:
         print(f"Error executing SSH: {e}", file=sys.stderr)
         sys.exit(1)

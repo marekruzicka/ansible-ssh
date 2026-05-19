@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ssh-ansible"
+dynamic = ["version"]
+description = "SSH to host from ansible inventory"
+readme = "README_pypi.md"
+license = { text = "MIT" }
+requires-python = ">=3.6"
+authors = [
+    { name = "Marek Ruzicka", email = "pypi@glide.sk" },
+]
+dependencies = [
+    "ansible-core>=2.9,<3",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+    "Environment :: Console",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build",
+    "setuptools-scm",
+    "twine>=6.1",
+    "pytest>=7",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[project.scripts]
+ansible-ssh = "ssh_ansible.ansible_ssh:main"
+
+[project.urls]
+Homepage = "https://github.com/marekruzicka/ansible-ssh"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+# Version is derived automatically from git tags (e.g. v1.2.3 -> 1.2.3).
+# No VERSION env var needed in CI.
