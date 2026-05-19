@@ -38,7 +38,7 @@ def print_bash_completion_script():
 # Bash completion script for {basename}
 
 _ansible_ssh_completion() {
-    local cur prev inv_index inv_file hostlist debug_count options
+    local cur prev inv_index inv_file hostlist verbose_count options
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -170,13 +170,11 @@ _ansible_ssh_completion() {
 
     # If host has been selected from the inventory, suggest additional argument completions.
     if [ $COMP_CWORD -ge $((inv_index+2)) ] || ([ $inv_index -eq -1 ] && [ $COMP_CWORD -ge 2 ]); then
-        # Count the number of --debug and --print-only occurrences
-        # Allow 3 --debug occurrences and 1 --print-only
-        debug_count=0
+        verbose_count=0
         print_only_count=0
         for word in "${COMP_WORDS[@]}"; do
-            if [ "$word" == "--debug" ]; then
-                debug_count=$((debug_count+1))
+            if [ "$word" == "-v" ]; then
+                verbose_count=$((verbose_count+1))
             fi
             if [ "$word" == "--print-only" ]; then
                 print_only_count=$((print_only_count+1))
@@ -186,11 +184,11 @@ _ansible_ssh_completion() {
         if [ $print_only_count -eq 0 ]; then
             options="--print-only"
         fi
-        if [ $debug_count -lt 3 ]; then
+        if [ $verbose_count -eq 0 ]; then
             if [ -z "$options" ]; then
-                options="--debug"
+                options="-v"
             else
-                options="$options --debug"
+                options="$options -v"
             fi
         fi
         COMPREPLY=( $(compgen -W "$options" -- "$cur") )
@@ -244,17 +242,17 @@ def parse_arguments():
         The optional flags include:
             - --complete: Print bash completion script.
             - --print-only: Print SSH command instead of executing it.
-            - --debug: Increase verbosity (can be used up to 3 times).
+            - -v/--verbose: Increase SSH verbosity (stackable: -v, -vv, -vvv).
     
     Raises:
         SystemExit: If required arguments are missing.
     """
     parser = argparse.ArgumentParser(
-        usage="%(prog)s [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [--debug]",
+        usage="%(prog)s [-h] [-C {bash}] [-i INVENTORY] [host] [--print-only] [-v]",
         description="Connect to a host using connection variables from an Ansible inventory.",
         epilog="EXAMPLES:\n"
                "  Connect to a host:\n\t %(prog)s -i inventory myhost\n\n"
-               "  Connect to a host with ssh verbosity:\n\t %(prog)s -i inventory myhost --debug --debug\n\n"
+               "  Connect to a host with ssh verbosity:\n\t %(prog)s -i inventory myhost -vv\n\n"
                "  Print SSH command:\n\t %(prog)s -i inventory myhost --print-only\n\n"
                "  Generate and install bash completion script:\n\t %(prog)s -C bash | sudo tee /etc/bash_completion.d/%(prog)s",
         formatter_class=argparse.RawTextHelpFormatter
@@ -262,7 +260,7 @@ def parse_arguments():
     parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
     parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
     parser.add_argument("--print-only", action="store_true", help="Print SSH command instead of executing it")
-    parser.add_argument("--debug", action="count", default=0, help="Increase verbosity (can be used up to 3 times)")
+    parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase SSH verbosity, stackable up to -vvv")
     parser.add_argument("host", nargs="?", help="Host to connect to")
     args = parser.parse_args()
 
@@ -433,9 +431,9 @@ def main():
     ssh_env = None
 
     # Insert the verbosity flags after "ssh"
-    if args.debug > 0:
-        debug_flags = ["-v"] * min(args.debug, 3)
-        ssh_cmd[1:1] = debug_flags
+    if args.verbose > 0:
+        verbose_flags = ["-v"] * min(args.verbose, 3)
+        ssh_cmd[1:1] = verbose_flags
         print("Connecting to {} with options: {}".format(target, " ".join(ssh_cmd[1:-1])))
 
     # If a password is provided, prepend sshpass to the command.
