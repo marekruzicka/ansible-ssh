@@ -430,6 +430,7 @@ def main():
 
     # Build the SSH command and extract SSH password if any.
     ssh_cmd, ssh_pass, target = build_ssh_command(host_vars, args.host)
+    ssh_env = None
 
     # Insert the verbosity flags after "ssh"
     if args.debug > 0:
@@ -442,28 +443,20 @@ def main():
         if not shutil.which("sshpass"):
             print("Error: sshpass is required for password-based SSH. Please install sshpass.", file=sys.stderr)
             sys.exit(1)
-        ssh_cmd = ["sshpass", "-p", ssh_pass] + ssh_cmd
+        # Use sshpass -e (reads from SSHPASS env var) instead of -p to avoid
+        # exposing the password in the process list (/proc/<pid>/cmdline).
+        ssh_env = os.environ.copy()
+        ssh_env["SSHPASS"] = ssh_pass
+        ssh_cmd = ["sshpass", "-e"] + ssh_cmd
 
     # If --print-only flag is provided, just print the SSH command instead of executing it.
     if args.print_only:
         print("SSH command to be executed:")
-        # Mask the password in the printed command to avoid leaking it
-        display_cmd = []
-        mask_next = False
-        for arg in ssh_cmd:
-            if mask_next:
-                display_cmd.append("<password>")
-                mask_next = False
-            elif arg == "-p" and display_cmd and display_cmd[0] == "sshpass":
-                display_cmd.append(arg)
-                mask_next = True
-            else:
-                display_cmd.append(arg)
-        print(" ".join(shlex.quote(arg) for arg in display_cmd))
+        print(" ".join(shlex.quote(arg) for arg in ssh_cmd))
         sys.exit(0)
 
     try:
-        result = subprocess.run(ssh_cmd)
+        result = subprocess.run(ssh_cmd, env=ssh_env)
         sys.exit(result.returncode)
     except Exception as e:
         print(f"Error executing SSH: {e}", file=sys.stderr)
