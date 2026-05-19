@@ -428,7 +428,6 @@ def parse_extra_ssh_options(host_vars):
     return options
 
 def build_ssh_command(host_vars, host):
-    # Extract variables with fallbacks
     """
     Build the SSH command and target from host variables.
 
