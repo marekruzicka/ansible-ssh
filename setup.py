@@ -8,11 +8,14 @@ if not version:
 # Prefer README_pypi.md if it exists, else fallback to README.md
 readme_file = "README_pypi.md" if os.path.exists("README_pypi.md") else "README.md"
 
+with open(readme_file) as f:
+    long_description = f.read()
+
 setup(
     name="ssh_ansible",
     version=version,
     description="SSH to host from ansible inventory",
-    long_description=open(readme_file).read(),
+    long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/marekruzicka/ansible-ssh.git",
     author="Marek Ruzicka",
