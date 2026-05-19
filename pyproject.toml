@@ -27,7 +27,12 @@ dev = [
     "build",
     "setuptools-scm",
     "twine>=6.1",
+    "pytest>=7",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
 [project.scripts]
 ansible-ssh = "ssh_ansible.ansible_ssh:main"
