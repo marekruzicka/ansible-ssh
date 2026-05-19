@@ -103,6 +103,22 @@ To uninstall:
 bash utils/uninst.sh
 ```
 
+## Testing
+
+The test suite covers the Python command-building logic and the bash completion function.
+
+**Requirements:** `pytest>=7`, `bats` (bash tests), `ansible-core` and `jq` (for host-completion tests).
+
+```bash
+# Python unit and integration tests
+pip install pytest ansible-core
+pytest tests/
+
+# Bash completion tests
+bats tests/completion/
+```
+
+Test fixtures (inventory files, `ansible.cfg`) live in `tests/fixtures/`.
 ---
 
 ## CI pipeline (`.github/workflows/build_pypi.yml`)
