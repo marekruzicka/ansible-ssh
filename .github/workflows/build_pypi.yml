@@ -1,10 +1,6 @@
 # Builds and (on version tags) publishes the PyPI package.
 # Version is derived automatically from git tags via setuptools-scm.
 # Publishing uses OIDC Trusted Publishing — no API token secrets needed.
-# To enable: go to https://pypi.org/manage/project/ssh-ansible/settings/publishing/
-# and add a trusted publisher:
-#   Owner: marekruzicka  Repository: ansible-ssh
-#   Workflow: build_pypi.yml  Environment: pypi
 
 name: Build PyPI Package
 
