@@ -20,6 +20,18 @@ import subprocess
 import sys
 import shutil
 import configparser
+try:
+    from importlib.metadata import version as _pkg_version, PackageNotFoundError as _PkgNotFound
+except ImportError:  # Python < 3.8
+    from importlib_metadata import version as _pkg_version, PackageNotFoundError as _PkgNotFound  # type: ignore
+
+
+def get_version():
+    """Return the installed package version, including git commit for dev builds."""
+    try:
+        return _pkg_version("ssh-ansible")
+    except _PkgNotFound:
+        return "unknown"
 
 ANSIBLE_CONFIG_LOCATIONS = [
     lambda: os.environ.get("ANSIBLE_CONFIG"),
@@ -265,6 +277,7 @@ def parse_arguments():
     parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
     parser.add_argument("--print-only", action="store_true", help="Print SSH command instead of executing it")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase SSH verbosity, stackable up to -vvv")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {get_version()}")
     parser.add_argument("host", nargs="?", help="Host to connect to")
     args = parser.parse_args()
 
