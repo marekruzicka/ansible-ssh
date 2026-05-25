@@ -67,9 +67,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install build twine
 
-    - name: Generate PyPI README (strip shell install section)
-      run: awk 'BEGIN{p=1} /^### shell/{p=0} /^### pip/{p=1} p' README.md > README_pypi.md
-
     - name: Build package
       run: python -m build
 

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ssh-ansible"
 dynamic = ["version"]
 description = "SSH to host from ansible inventory"
-readme = "README_pypi.md"
+readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.6"
 authors = [
