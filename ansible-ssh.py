@@ -80,7 +80,7 @@ _ansible_ssh_completion() {
     if [[ $COMP_CWORD -eq 1 ]]; then
         # If current word starts with -, complete options
         if [[ "$cur" == -* ]]; then
-            COMPREPLY=( $(compgen -W "-C --complete -h --help -i --inventory" -- "$cur") )
+            COMPREPLY=( $(compgen -W "-C --complete -h --help -i --inventory --vault-password-file" -- "$cur") )
             return 0
         else
             # Try to complete hosts from ansible.cfg inventory if available
@@ -95,7 +95,7 @@ _ansible_ssh_completion() {
             fi
             
             # If no ansible.cfg inventory, complete options
-            COMPREPLY=( $(compgen -W "-C --complete -h --help -i --inventory" -- "$cur") )
+            COMPREPLY=( $(compgen -W "-C --complete -h --help -i --inventory --vault-password-file" -- "$cur") )
             return 0
         fi
     fi
@@ -119,7 +119,20 @@ _ansible_ssh_completion() {
             break
         fi
     done
+    # Locate the --vault-password-file argument
+    vault_pw_index=-1
+    for i in "${!COMP_WORDS[@]}"; do
+        if [[ "${COMP_WORDS[i]}" == "--vault-password-file" ]]; then
+            vault_pw_index=$((i+1))
+            break
+        fi
+    done
 
+    # If completing the vault password file path, do plain file completion
+    if [ $COMP_CWORD -eq $vault_pw_index ]; then
+        COMPREPLY=( $(compgen -f -- "$cur") )
+        return 0
+    fi
     # If completing the inventory file argument, check for ansible.cfg in standard locations
     if [ $COMP_CWORD -eq $inv_index ]; then
         local inv_path=$(_find_ansible_cfg_inventory)
@@ -249,6 +262,18 @@ def get_default_inventory_from_cfg(cfg_path):
         return parser.get("defaults", "inventory")
     return None
 
+
+def get_vault_password_file_from_cfg(cfg_path):
+    """
+    Parse ansible.cfg and return the vault_password_file path if set.
+    """
+    parser = configparser.ConfigParser()
+    parser.read(cfg_path)
+    if parser.has_section("defaults") and parser.has_option("defaults", "vault_password_file"):
+        path = parser.get("defaults", "vault_password_file")
+        return os.path.expanduser(path)
+    return None
+
 def parse_arguments():
     """
     Parse command-line arguments for ansible-ssh.
@@ -275,6 +300,8 @@ def parse_arguments():
     )
     parser.add_argument("-C", "--complete", choices=["bash"], help="Print bash completion script and exit")
     parser.add_argument("-i", "--inventory", help="Path to the Ansible inventory file")
+    parser.add_argument("--vault-password-file", metavar="FILE",
+                        help="Vault password file (overrides ansible.cfg vault_password_file)")
     parser.add_argument("--print-only", action="store_true", help="Print SSH command instead of executing it")
     parser.add_argument("-v", "--verbose", action="count", default=0, help="Increase SSH verbosity, stackable up to -vvv")
     parser.add_argument("--version", action="version", version=f"%(prog)s {get_version()}")
@@ -289,27 +316,42 @@ def parse_arguments():
             if inv:
                 args.inventory = inv
 
+    # If --vault-password-file is not provided, try to get it from ansible.cfg
+    if not args.vault_password_file and not args.complete:
+        cfg_path = find_ansible_cfg()
+        if cfg_path:
+            vpf = get_vault_password_file_from_cfg(cfg_path)
+            if vpf and os.path.isfile(vpf):
+                args.vault_password_file = vpf
+
     if not args.complete and (not args.inventory or not args.host):
         parser.error("the following arguments are required: -i/--inventory (or ansible.cfg must exist in one of the standard locations), host")
     return args
 
-def get_host_vars(inventory_file, host):
+def get_host_vars(inventory_file, host, vault_password_file=None):
     """
     Retrieve host variables from the inventory using ansible-inventory.
 
     Args:
         inventory_file (str): Path to the Ansible inventory file.
         host (str): Host name.
+        vault_password_file (str, optional): Path to a vault password file.
 
     Returns:
         dict: Host variables. Returns empty dict if host exists but has no variables.
+              Vault-encrypted values that could not be decrypted are returned as-is
+              (dicts with a ``__ansible_vault`` key).
 
     Raises:
         SystemExit: If ansible-inventory command fails, host is not found, or produces invalid JSON.
     """
+    cmd = ["ansible-inventory", "-i", inventory_file]
+    if vault_password_file:
+        cmd += ["--vault-password-file", vault_password_file]
+    cmd.append("--list")
     try:
         list_result = subprocess.run(
-            ["ansible-inventory", "-i", inventory_file, "--list"],
+            cmd,
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -341,8 +383,45 @@ def get_host_vars(inventory_file, host):
         print(f"Error: Host '{host}' not found in inventory '{inventory_file}'.", file=sys.stderr)
         sys.exit(1)
 
-    # Extract host vars directly from _meta.hostvars (may be empty dict if no variables defined)
-    return inventory_data.get("_meta", {}).get("hostvars", {}).get(host, {})
+    host_vars = inventory_data.get("_meta", {}).get("hostvars", {}).get(host, {})
+
+    if vault_password_file:
+        host_vars = _decrypt_vault_vars(host_vars, vault_password_file)
+
+    return host_vars
+
+
+def _decrypt_vault_vars(vars_dict, vault_password_file):
+    """Return a copy of vars_dict with any ``{__ansible_vault: ...}`` values decrypted.
+
+    Uses ansible's own VaultLib so the same encryption format is always supported.
+    Values that fail to decrypt (wrong password, corrupted data) are left as-is.
+    """
+    try:
+        from ansible.parsing.vault import VaultLib, VaultSecret  # noqa: PLC0415
+    except ImportError:
+        return vars_dict  # ansible-core not importable; skip decryption
+
+    try:
+        with open(vault_password_file) as fh:
+            password = fh.read().strip().encode()
+    except OSError as exc:
+        print(f"Warning: could not read vault password file '{vault_password_file}': {exc}",
+              file=sys.stderr)
+        return vars_dict
+
+    vault = VaultLib(secrets=[("default", VaultSecret(password))])
+    result = {}
+    for key, val in vars_dict.items():
+        if isinstance(val, dict) and "__ansible_vault" in val:
+            try:
+                decrypted = vault.decrypt(val["__ansible_vault"])
+                result[key] = decrypted.decode("utf-8").strip()
+            except Exception:
+                result[key] = val  # keep encrypted form on failure
+        else:
+            result[key] = val
+    return result
 
 def parse_extra_ssh_options(host_vars):
     """
@@ -372,6 +451,23 @@ def parse_extra_ssh_options(host_vars):
             sys.exit(1)
     return options
 
+def _is_vault_encrypted(value):
+    """Return True if value is an unresolved ansible-vault encrypted object."""
+    return isinstance(value, dict) and "__ansible_vault" in value
+
+
+def _scalar_or_none(value, var_name):
+    """Return value if it is a plain scalar, else None (warning printed for vault objects)."""
+    if _is_vault_encrypted(value):
+        print(
+            f"Warning: '{var_name}' is vault-encrypted and could not be decrypted. "
+            "Use --vault-password-file.",
+            file=sys.stderr,
+        )
+        return None
+    return value
+
+
 def build_ssh_command(host_vars, host):
     """
     Build the SSH command and target from host variables.
@@ -384,13 +480,23 @@ def build_ssh_command(host_vars, host):
         tuple: (ssh_cmd (list), ssh_pass (str or None), target (str))
     """
     # For host, check ansible_ssh_host then ansible_host, then fall back to the original host name
-    host_ip = host_vars.get("ansible_ssh_host") or host_vars.get("ansible_host") or host
+    host_ip = (
+        _scalar_or_none(host_vars.get("ansible_ssh_host"), "ansible_ssh_host")
+        or _scalar_or_none(host_vars.get("ansible_host"), "ansible_host")
+        or host
+    )
     # For user, check ansible_ssh_user then ansible_user.
-    user = host_vars.get("ansible_ssh_user") or host_vars.get("ansible_user")
-    port = host_vars.get("ansible_port")
-    key = host_vars.get("ansible_private_key_file")
+    user = (
+        _scalar_or_none(host_vars.get("ansible_ssh_user"), "ansible_ssh_user")
+        or _scalar_or_none(host_vars.get("ansible_user"), "ansible_user")
+    )
+    port = _scalar_or_none(host_vars.get("ansible_port"), "ansible_port")
+    key = _scalar_or_none(host_vars.get("ansible_private_key_file"), "ansible_private_key_file")
     # For password, check ansible_ssh_pass then ansible_password.
-    ssh_pass = host_vars.get("ansible_ssh_pass") or host_vars.get("ansible_password")
+    ssh_pass = (
+        _scalar_or_none(host_vars.get("ansible_ssh_pass"), "ansible_ssh_pass")
+        or _scalar_or_none(host_vars.get("ansible_password"), "ansible_password")
+    )
     
     # Build the base SSH command as a list
     ssh_cmd = ["ssh"]
@@ -441,7 +547,7 @@ def main():
         sys.exit(1)
 
     # Get host variables from ansible-inventory.
-    host_vars = get_host_vars(args.inventory, args.host)
+    host_vars = get_host_vars(args.inventory, args.host, vault_password_file=args.vault_password_file)
 
     # Build the SSH command and extract SSH password if any.
     ssh_cmd, ssh_pass, target = build_ssh_command(host_vars, args.host)

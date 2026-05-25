@@ -11,6 +11,7 @@ Simply run `ansible-ssh <host>` (if ansible.cfg exists) or `ansible-ssh -i inven
 - **Automated Connection Parameters:** Extracts connection details from an Ansible inventory.
 - **ansible.cfg Integration:** Automatically detects and uses inventory file from ansible.cfg when present.
 - **Advanced SSH Options:** Supports ProxyJump, ProxyCommand, and other SSH options via `ansible_ssh_common_args` and `ansible_ssh_extra_args`.
+- **Supports Vault Encrypted Passwords** Detects vault configuration in `ansible.cfg` or could be provided via `--vault-password-file`.
 - **Fallback Mechanism:** Uses standard SSH configuration (e.g., `~/.ssh/config`) for any unspecified settings.
 - **Smart Bash Completion:** Auto-completes inventory files from `ansible.cfg` and host names from your inventory.
 - **Multiple Inventory Formats:** Works with both YAML and INI inventory formats.
@@ -75,25 +76,25 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  -C {bash}, --complete {bash}
+  -C, --complete {bash}
                         Print bash completion script and exit
-  -i INVENTORY, --inventory INVENTORY
-                        Path to the Ansible inventory file (optional if ansible.cfg exists)
+  -i, --inventory INVENTORY
+                        Path to the Ansible inventory file
+  --vault-password-file FILE
+                        Vault password file (overrides ansible.cfg vault_password_file)
   --print-only          Print SSH command instead of executing it
-  -v, --verbose         Increase verbosity, stackable up to -vvv
+  -v, --verbose         Increase SSH verbosity, stackable up to -vvv
+  --version             show program's version number and exit
 
 EXAMPLES:
-  Connect to a host (using ansible.cfg):
-         ansible-ssh myhost
-
-  Connect to a host with specific inventory:
-         ansible-ssh -i inventory myhost
+  Connect to a host:
+         ansible-ssh.py -i inventory myhost
 
   Connect to a host with ssh verbosity:
-         ansible-ssh -i inventory myhost -vv
+         ansible-ssh.py -i inventory myhost -vv
 
-  Print SSH command without executing:
-         ansible-ssh myhost --print-only
+  Print SSH command:
+         ansible-ssh.py -i inventory myhost --print-only
 
   Generate and install bash completion script:
          ansible-ssh -C bash | sudo tee /etc/bash_completion.d/ansible-ssh

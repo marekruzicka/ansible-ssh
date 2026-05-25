@@ -14,6 +14,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 INV_YAML = os.path.join(REPO_ROOT, "tests", "fixtures", "inventory")
 INV_INI = os.path.join(REPO_ROOT, "tests", "fixtures", "hosts.ini")
 INV_PROXY = os.path.join(REPO_ROOT, "tests", "fixtures", "hosts_proxy.yaml")
+VAULT_PW_FILE = os.path.join(REPO_ROOT, "tests", "fixtures", "vault_password")
 
 
 class TestGetHostVars:
@@ -46,6 +47,18 @@ class TestGetHostVars:
         assert result.get("ansible_ssh_host") == "192.168.123.2"
         assert result.get("ansible_ssh_user") == "ansible"
         assert "ProxyCommand" in result.get("ansible_ssh_common_args", "")
+
+    def test_vault_encrypted_password_without_key_is_dict(self):
+        # Without a vault password, encrypted vars come back as {"__ansible_vault": ...} dicts
+        result = get_host_vars(INV_YAML, "server_vault")
+        raw = result.get("ansible_password")
+        assert isinstance(raw, dict) and "__ansible_vault" in raw
+
+    def test_vault_encrypted_password_decrypted(self):
+        result = get_host_vars(INV_YAML, "server_vault", vault_password_file=VAULT_PW_FILE)
+        assert result.get("ansible_password") == "vault_test_pass"
+        assert result.get("ansible_user") == "vaultuser"
+        assert result.get("ansible_host") == "10.0.0.99"
 
 
 def _pick_host_from_inventory(inventory_path):
@@ -84,20 +97,26 @@ class TestGetHostVarsExternal:
     variable values, so they work with any inventory.
     """
 
-    def test_returns_dict_for_discovered_host(self, external_inventory):
+    def test_returns_dict_for_discovered_host(self, external_inventory, vault_password_file):
         host = _pick_host_from_inventory(external_inventory)
         assert host is not None, "Could not discover any host in the supplied inventory"
-        result = get_host_vars(external_inventory, host)
+        result = get_host_vars(external_inventory, host, vault_password_file=vault_password_file)
         assert isinstance(result, dict)
 
-    def test_all_values_are_scalars_or_none(self, external_inventory):
+    def test_all_values_are_scalars_or_none(self, external_inventory, vault_password_file):
         host = _pick_host_from_inventory(external_inventory)
         assert host is not None
-        result = get_host_vars(external_inventory, host)
+        result = get_host_vars(external_inventory, host, vault_password_file=vault_password_file)
         for key, val in result.items():
             assert isinstance(key, str)
-            assert val is None or isinstance(val, (str, int, float, bool))
+            # Vault-encrypted values appear as {"__ansible_vault": ...} dicts when no
+            # vault password is supplied; that is valid and expected.
+            assert (
+                val is None
+                or isinstance(val, (str, int, float, bool))
+                or (isinstance(val, dict) and "__ansible_vault" in val)
+            )
 
-    def test_unknown_host_exits(self, external_inventory):
+    def test_unknown_host_exits(self, external_inventory, vault_password_file):
         with pytest.raises(SystemExit):
-            get_host_vars(external_inventory, "nonexistent-host-xyz-12345")
+            get_host_vars(external_inventory, "nonexistent-host-xyz-12345", vault_password_file=vault_password_file)

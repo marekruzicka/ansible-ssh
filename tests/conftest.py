@@ -9,6 +9,13 @@ def pytest_addoption(parser):
         metavar="PATH",
         help="Path to an external Ansible inventory file for integration tests",
     )
+    parser.addoption(
+        "--test-vault-password-file",
+        action="store",
+        default=None,
+        metavar="FILE",
+        help="Vault password file used when --test-inventory contains encrypted variables",
+    )
 
 
 @pytest.fixture
@@ -21,3 +28,13 @@ def external_inventory(request):
     if inv is None:
         pytest.skip("No external inventory provided — pass --test-inventory=<path>")
     return inv
+
+
+@pytest.fixture
+def vault_password_file(request):
+    """Optional vault password file passed via --test-vault-password-file.
+
+    Returns None when the option is not supplied; tests still run but vault
+    variables in the external inventory will remain as encrypted dicts.
+    """
+    return request.config.getoption("--test-vault-password-file")

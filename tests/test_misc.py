@@ -1,6 +1,6 @@
 import os
 import pytest
-from ssh_ansible.ansible_ssh import find_ansible_cfg, get_default_inventory_from_cfg
+from ssh_ansible.ansible_ssh import find_ansible_cfg, get_default_inventory_from_cfg, get_vault_password_file_from_cfg
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 TEST_FILES = os.path.join(REPO_ROOT, "tests", "fixtures")
@@ -44,3 +44,27 @@ class TestFindAnsibleCfg:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("ANSIBLE_CONFIG", raising=False)
         assert find_ansible_cfg() == str(cfg)
+
+
+class TestGetVaultPasswordFileFromCfg:
+
+    def test_reads_vault_password_file_key(self, tmp_path):
+        vpf = tmp_path / "vault.pw"
+        vpf.write_text("secret\n")
+        cfg = tmp_path / "ansible.cfg"
+        cfg.write_text(f"[defaults]\nvault_password_file = {vpf}\n")
+        assert get_vault_password_file_from_cfg(str(cfg)) == str(vpf)
+
+    def test_expands_tilde(self, tmp_path, monkeypatch):
+        cfg = tmp_path / "ansible.cfg"
+        cfg.write_text("[defaults]\nvault_password_file = ~/.ansible/.vault\n")
+        result = get_vault_password_file_from_cfg(str(cfg))
+        assert result.startswith("/") and "~" not in result
+
+    def test_missing_key_returns_none(self, tmp_path):
+        cfg = tmp_path / "ansible.cfg"
+        cfg.write_text("[defaults]\n# no vault setting\n")
+        assert get_vault_password_file_from_cfg(str(cfg)) is None
+
+    def test_missing_file_returns_none(self):
+        assert get_vault_password_file_from_cfg("/nonexistent/path/ansible.cfg") is None
