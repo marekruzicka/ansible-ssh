@@ -127,6 +127,7 @@ Test fixtures (inventory files, `ansible.cfg`) live in `tests/fixtures/`.
 
 | Event | Build job | Publish job |
 |-------|-----------|-------------|
+| Push to `main` | ❌ | ❌ |
 | Pull request → `main` | ✅ | ❌ |
 | Push of a `v*` tag | ✅ | ✅ |
 | `workflow_dispatch` | ✅ | ✅ |

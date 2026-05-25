@@ -6,7 +6,6 @@ name: Build PyPI Package
 
 on:
   push:
-    branches: ["**"]
     tags: ["v*"]
   pull_request:
     branches: [main]
@@ -47,9 +46,9 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     if: >-
-      github.ref == 'refs/heads/main' ||
       startsWith(github.ref, 'refs/tags/v') ||
-      github.event_name == 'workflow_dispatch'
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request'
 
     steps:
     - name: Checkout code
